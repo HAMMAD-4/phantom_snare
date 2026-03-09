@@ -134,7 +134,8 @@ class ShieldScreen extends StatelessWidget {
         const SizedBox(width: 12),
         _buildStatCard(
           'Threats/Min',
-          shield.isActive ? '~${(60 / 3).round()}' : '0',
+          // Derived from the 3-second monitoring interval: 60 ÷ 3 = 20
+          shield.isActive ? '~20' : '0',
           Icons.speed,
           AppTheme.warningColor,
         ),

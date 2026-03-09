@@ -22,10 +22,13 @@ class VaultService extends ChangeNotifier {
       List.unmodifiable(_aggregatedAlerts);
   int get selectedTabIndex => _selectedTabIndex;
 
+  // Maximum number of alerts retained in memory.
+  static const int _maxAlerts = 200;
+
   void addAlert(SecurityAlert alert) {
     _aggregatedAlerts.insert(0, alert);
-    if (_aggregatedAlerts.length > 200) {
-      _aggregatedAlerts.removeRange(200, _aggregatedAlerts.length);
+    if (_aggregatedAlerts.length > _maxAlerts) {
+      _aggregatedAlerts.removeRange(_maxAlerts, _aggregatedAlerts.length);
     }
     notifyListeners();
   }

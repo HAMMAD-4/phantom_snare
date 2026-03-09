@@ -126,7 +126,8 @@ void main() {
   });
 
   group('SpoofingEvent', () {
-    test('deceptionDistanceKm is non-negative', () {
+    test('deceptionDistanceKm is positive for different real vs phantom coords',
+        () {
       final event = SpoofingEvent(
         id: '1',
         realLatitude: 37.7749,
@@ -137,7 +138,25 @@ void main() {
         type: SpoofingType.gps,
         timestamp: DateTime.now(),
       );
+      // Euclidean distance ~= sqrt((51.5074-37.7749)² + (-0.1278+122.4194)²) * 111
+      // ≈ sqrt(188.8 + 14975) * 111 ≈ 122.5 * 111 ≈ 13597 km
       expect(event.deceptionDistanceKm, greaterThan(0));
+      expect(event.deceptionDistanceKm, lessThan(20000)); // must be < circumference
+    });
+
+    test('deceptionDistanceKm is zero when real and phantom coords are equal',
+        () {
+      final event = SpoofingEvent(
+        id: '2',
+        realLatitude: 10.0,
+        realLongitude: 20.0,
+        phantomLatitude: 10.0,
+        phantomLongitude: 20.0,
+        triggerSource: 'test',
+        type: SpoofingType.gps,
+        timestamp: DateTime.now(),
+      );
+      expect(event.deceptionDistanceKm, equals(0.0));
     });
 
     test('SpoofingType labels are non-empty', () {
@@ -268,20 +287,17 @@ void main() {
       service.dispose();
     });
 
-    test('randomizePhantomLocation changes coordinates', () {
+    test('randomizePhantomLocation produces distinct values across calls', () {
       final service = PhantomSnareService();
-      final origLat = service.phantomLat;
-      final origLon = service.phantomLon;
-      // Randomize multiple times to ensure at least one change
-      bool changed = false;
-      for (int i = 0; i < 10; i++) {
+      // Collect several randomized positions
+      final positions = <(double, double)>[];
+      for (int i = 0; i < 20; i++) {
         service.randomizePhantomLocation();
-        if (service.phantomLat != origLat || service.phantomLon != origLon) {
-          changed = true;
-          break;
-        }
+        positions.add((service.phantomLat, service.phantomLon));
       }
-      expect(changed, isTrue);
+      // Expect at least some distinct positions (virtually guaranteed for 20 calls)
+      final distinctCount = positions.toSet().length;
+      expect(distinctCount, greaterThan(1));
       service.dispose();
     });
 

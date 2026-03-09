@@ -83,10 +83,17 @@ class PhantomSnareService extends ChangeNotifier {
     notifyListeners();
   }
 
+  // Valid latitude range: -90 to +90 → span 180°, offset 90°
+  static const double _latitudeSpan = 180.0;
+  static const double _latitudeOffset = 90.0;
+  // Valid longitude range: -180 to +180 → span 360°, offset 180°
+  static const double _longitudeSpan = 360.0;
+  static const double _longitudeOffset = 180.0;
+
   /// Randomize the phantom location (serves a new decoy to the attacker).
   void randomizePhantomLocation() {
-    _phantomLat = (_rng.nextDouble() * 160) - 80;
-    _phantomLon = (_rng.nextDouble() * 360) - 180;
+    _phantomLat = (_rng.nextDouble() * _latitudeSpan) - _latitudeOffset;
+    _phantomLon = (_rng.nextDouble() * _longitudeSpan) - _longitudeOffset;
     notifyListeners();
   }
 
