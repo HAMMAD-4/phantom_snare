@@ -46,8 +46,15 @@ flutter run
 ### Running Tests
 
 ```bash
-flutter test
+flutter test                                        # Run all tests
+flutter test test/sentinel_privacy_test.dart        # Unit tests
+flutter test test/stability_test.dart               # Stability / no-hang tests
+flutter test test/safety_test.dart                  # Safety / simulation-only tests
+flutter test test/widget_test.dart                  # Widget smoke tests
+flutter analyze                                     # Static analysis
 ```
+
+> **📖 See [TESTING.md](TESTING.md) for the full testing guide** — including how to verify the app won't hang or corrupt your phone, manual testing checklists, and CI setup.
 
 ---
 
