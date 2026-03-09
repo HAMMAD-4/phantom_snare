@@ -148,43 +148,37 @@ void main() {
   group('Immutable getters (no external mutation)', () {
     test('ObserverService.detectedApps is unmodifiable', () {
       final service = ObserverService();
-      final apps = service.detectedApps;
-      expect(() => apps.add(null as dynamic), throwsA(isA<Error>()));
+      _expectUnmodifiable(service.detectedApps);
       service.dispose();
     });
 
     test('ObserverService.networkLog is unmodifiable', () {
       final service = ObserverService();
-      final log = service.networkLog;
-      expect(() => log.add(null as dynamic), throwsA(isA<Error>()));
+      _expectUnmodifiable(service.networkLog);
       service.dispose();
     });
 
     test('ShieldService.blockedConnections is unmodifiable', () {
       final service = ShieldService();
-      final connections = service.blockedConnections;
-      expect(() => connections.add(null as dynamic), throwsA(isA<Error>()));
+      _expectUnmodifiable(service.blockedConnections);
       service.dispose();
     });
 
     test('DeceptorService.interceptedAttempts is unmodifiable', () {
       final service = DeceptorService();
-      final attempts = service.interceptedAttempts;
-      expect(() => attempts.add(null as dynamic), throwsA(isA<Error>()));
+      _expectUnmodifiable(service.interceptedAttempts);
       service.dispose();
     });
 
     test('PhantomSnareService.spoofingEvents is unmodifiable', () {
       final service = PhantomSnareService();
-      final events = service.spoofingEvents;
-      expect(() => events.add(null as dynamic), throwsA(isA<Error>()));
+      _expectUnmodifiable(service.spoofingEvents);
       service.dispose();
     });
 
     test('VaultService.aggregatedAlerts is unmodifiable', () {
       final service = VaultService();
-      final alerts = service.aggregatedAlerts;
-      expect(() => alerts.add(null as dynamic), throwsA(isA<Error>()));
+      _expectUnmodifiable(service.aggregatedAlerts);
     });
   });
 }
@@ -192,6 +186,11 @@ void main() {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+/// Asserts that [list] throws when a mutation is attempted.
+void _expectUnmodifiable(List<dynamic> list) {
+  expect(() => list.add(null as dynamic), throwsA(isA<Error>()));
+}
 
 SecurityAlert _makeAlert(String id) {
   return SecurityAlert(

@@ -18,6 +18,10 @@ import 'package:sentinel_privacy/screens/phantom_snare_screen.dart';
 /// These tests catch missing assets, null errors, and layout overflow issues.
 ///
 /// Run with: flutter test test/widget_test.dart
+
+/// Duration to wait after pumping a widget tree before assertions.
+const _settleTimeout = Duration(seconds: 1);
+
 void main() {
   /// Helper that wraps a widget with the full Provider tree so that
   /// Consumer<…> look-ups succeed during the test pump.
@@ -38,7 +42,7 @@ void main() {
     testWidgets('VaultScreen renders title and module cards',
         (WidgetTester tester) async {
       await tester.pumpWidget(_wrapWithProviders(const VaultScreen()));
-      await tester.pumpAndSettle(const Duration(seconds: 1));
+      await tester.pumpAndSettle(_settleTimeout);
 
       // The dashboard should show the app name
       expect(find.textContaining('Sentinel'), findsWidgets);
@@ -47,7 +51,7 @@ void main() {
     testWidgets('ObserverScreen renders without errors',
         (WidgetTester tester) async {
       await tester.pumpWidget(_wrapWithProviders(const ObserverScreen()));
-      await tester.pumpAndSettle(const Duration(seconds: 1));
+      await tester.pumpAndSettle(_settleTimeout);
 
       expect(find.textContaining('Observer'), findsWidgets);
     });
@@ -55,7 +59,7 @@ void main() {
     testWidgets('ShieldScreen renders without errors',
         (WidgetTester tester) async {
       await tester.pumpWidget(_wrapWithProviders(const ShieldScreen()));
-      await tester.pumpAndSettle(const Duration(seconds: 1));
+      await tester.pumpAndSettle(_settleTimeout);
 
       expect(find.textContaining('Shield'), findsWidgets);
     });
@@ -63,7 +67,7 @@ void main() {
     testWidgets('DeceptorScreen renders without errors',
         (WidgetTester tester) async {
       await tester.pumpWidget(_wrapWithProviders(const DeceptorScreen()));
-      await tester.pumpAndSettle(const Duration(seconds: 1));
+      await tester.pumpAndSettle(_settleTimeout);
 
       expect(find.textContaining('Deceptor'), findsWidgets);
     });
@@ -71,7 +75,7 @@ void main() {
     testWidgets('PhantomSnareScreen renders without errors',
         (WidgetTester tester) async {
       await tester.pumpWidget(_wrapWithProviders(const PhantomSnareScreen()));
-      await tester.pumpAndSettle(const Duration(seconds: 1));
+      await tester.pumpAndSettle(_settleTimeout);
 
       expect(find.textContaining('Phantom'), findsWidgets);
     });
@@ -90,7 +94,7 @@ void main() {
           child: const SentinelPrivacyApp(),
         ),
       );
-      await tester.pumpAndSettle(const Duration(seconds: 1));
+      await tester.pumpAndSettle(_settleTimeout);
 
       // The app should display without throwing
       expect(find.byType(MaterialApp), findsOneWidget);
@@ -101,7 +105,7 @@ void main() {
     testWidgets('VaultScreen shows module grid cards',
         (WidgetTester tester) async {
       await tester.pumpWidget(_wrapWithProviders(const VaultScreen()));
-      await tester.pumpAndSettle(const Duration(seconds: 1));
+      await tester.pumpAndSettle(_settleTimeout);
 
       // The Vault dashboard shows module cards for Observer, Shield, Deceptor,
       // Phantom Snare
