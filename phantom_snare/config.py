@@ -28,6 +28,14 @@ class Config:
     # Banner sent to connecting clients (makes the honeypot look like a real service)
     banner: str = "Welcome\r\n"
 
+    # MySQL database settings
+    db_enabled: bool = False
+    db_host: str = "localhost"
+    db_port: int = 3306
+    db_user: str = "root"
+    db_password: str = ""
+    db_name: str = "phantom_snare"
+
     # Email alert settings (all must be set to enable email alerts)
     alert_email_to: Optional[str] = None
     alert_email_from: Optional[str] = None

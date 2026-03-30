@@ -8,9 +8,10 @@
 
 - **Multi-port listening** – deploy decoy services on any number of TCP ports simultaneously.
 - **Structured JSON logging** – every captured connection is written as a JSON line (timestamp, source IP/port, payload), making it easy to ingest into Splunk, ELK, or any log aggregator.
+- **MySQL persistence** – optionally save every capture to a local MySQL database (compatible with Laragon, WAMP, XAMPP). Requires `mysql-connector-python`.
 - **Configurable banner** – present a realistic service banner to lure attackers into sending more data.
 - **Email alerts** – optionally receive an email for every captured connection via any SMTP server.
-- **Zero runtime dependencies** – built entirely on the Python standard library.
+- **Zero runtime dependencies for core features** – the honeypot listener and logging work with the Python standard library alone; `mysql-connector-python` is only needed when `db_enabled` is `true`.
 - **Fully tested** – unit and integration tests covering all core modules.
 
 ---
@@ -76,6 +77,12 @@ Copy `config.example.json` to `config.json` and edit as needed.
 | `log_file` | string\|null | `"phantom_snare.log"` | Log file path (`null` = stdout only). |
 | `max_connections` | int | `50` | Listen backlog per port. |
 | `banner` | string | `"Welcome\r\n"` | Text sent to connecting clients. |
+| `db_enabled` | bool | `false` | Enable MySQL persistence. |
+| `db_host` | string | `"localhost"` | MySQL server host (Laragon default). |
+| `db_port` | int | `3306` | MySQL server port. |
+| `db_user` | string | `"root"` | MySQL username (Laragon default). |
+| `db_password` | string | `""` | MySQL password (Laragon default: empty). |
+| `db_name` | string | `"phantom_snare"` | MySQL database name. |
 | `alert_email_to` | string\|null | `null` | Recipient email for alerts. |
 | `alert_email_from` | string\|null | `null` | Sender email for alerts. |
 | `alert_smtp_host` | string\|null | `null` | SMTP server hostname. |
@@ -87,7 +94,76 @@ Email alerts are only sent when **all** of `alert_email_to`, `alert_email_from`,
 
 ---
 
-## Log format
+## MySQL database storage
+
+phantom_snare persists every captured connection to a local MySQL database (works with [Laragon](https://laragon.org/), WAMP, XAMPP, or any standard MySQL 8+ installation).
+
+### One-time setup
+
+1. **Start MySQL** – launch Laragon (or your local MySQL server).
+
+2. **Create the database** – connect with a MySQL client and run:
+   ```sql
+   CREATE DATABASE IF NOT EXISTS phantom_snare
+     CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+   ```
+
+3. **Enable the DB in your config** – edit `config.json` (copy from `config.example.json`):
+   ```json
+   {
+     "db_enabled": true,
+     "db_host": "localhost",
+     "db_port": 3306,
+     "db_user": "root",
+     "db_password": "",
+     "db_name": "phantom_snare"
+   }
+   ```
+   Laragon's default MySQL credentials are `root` / *(empty password)*.
+
+4. **Install the driver**:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+phantom_snare automatically creates the `captures` table on first run.
+
+### Schema
+
+```sql
+CREATE TABLE captures (
+    id            INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    timestamp     DATETIME(6)       NOT NULL,  -- UTC connection time
+    remote_ip     VARCHAR(45)       NOT NULL,  -- IPv4 or IPv6
+    remote_port   SMALLINT UNSIGNED NOT NULL,
+    local_port    SMALLINT UNSIGNED NOT NULL,
+    payload_bytes INT UNSIGNED      NOT NULL,
+    payload       MEDIUMTEXT,                  -- UTF-8 decoded payload
+    created_at    TIMESTAMP         NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+### Querying captures
+
+```sql
+-- Most recent 20 attempts
+SELECT timestamp, remote_ip, remote_port, local_port, payload
+FROM captures
+ORDER BY timestamp DESC
+LIMIT 20;
+
+-- All hits on port 22
+SELECT * FROM captures WHERE local_port = 22;
+
+-- Unique attackers in the last 24 hours
+SELECT DISTINCT remote_ip
+FROM captures
+WHERE timestamp >= NOW() - INTERVAL 1 DAY;
+```
+
+---
+
+
 
 Each captured connection produces one JSON line in the log:
 
@@ -111,16 +187,18 @@ phantom_snare/
 ├── phantom_snare/        # Python package
 │   ├── __init__.py
 │   ├── config.py         # Configuration dataclass
+│   ├── database.py       # MySQL persistence layer
 │   ├── logger.py         # CaptureRecord + logging helpers
 │   ├── snare.py          # Core TCP honeypot listener
 │   └── alerts.py         # Email alert module
 ├── tests/
 │   ├── test_config.py
+│   ├── test_database.py
 │   ├── test_logger.py
 │   └── test_snare.py
 ├── main.py               # CLI entry point
 ├── config.example.json   # Example configuration
-├── requirements.txt      # Runtime deps (none)
+├── requirements.txt      # Runtime deps (mysql-connector-python)
 ├── requirements-dev.txt  # Dev/test deps
 └── pyproject.toml
 ```

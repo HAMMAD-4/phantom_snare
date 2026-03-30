@@ -13,6 +13,7 @@ from typing import List, Optional
 
 from .alerts import send_alert
 from .config import Config
+from .database import DatabaseManager
 from .logger import CaptureRecord, build_logger, log_capture
 
 _module_logger = logging.getLogger("phantom_snare.snare")
@@ -36,6 +37,7 @@ class Snare:
     def __init__(self, config: Optional[Config] = None) -> None:
         self.config = config or Config()
         self._logger = build_logger(log_file=self.config.log_file)
+        self._db: Optional[DatabaseManager] = None
         self._server_sockets: List[socket.socket] = []
         self._threads: List[threading.Thread] = []
         self._stop_event = threading.Event()
@@ -50,6 +52,16 @@ class Snare:
         Returns immediately; all I/O happens in daemon threads.
         """
         self._stop_event.clear()
+
+        # Connect to MySQL if enabled
+        if self.config.db_enabled:
+            self._db = DatabaseManager(self.config)
+            try:
+                self._db.connect()
+            except Exception as exc:  # pylint: disable=broad-except
+                _module_logger.error("MySQL connection failed: %s", exc)
+                self._db = None
+
         for port in self.config.ports:
             self._start_listener(port)
         _module_logger.info(
@@ -58,7 +70,7 @@ class Snare:
         )
 
     def stop(self) -> None:
-        """Signal all listeners to stop and close their sockets."""
+        """Signal all listeners to stop, close sockets, and disconnect from MySQL."""
         self._stop_event.set()
         for sock in self._server_sockets:
             try:
@@ -69,6 +81,9 @@ class Snare:
             thread.join(timeout=2)
         self._server_sockets.clear()
         self._threads.clear()
+        if self._db is not None:
+            self._db.close()
+            self._db = None
         _module_logger.info("phantom_snare stopped.")
 
     def run_forever(self) -> None:
@@ -162,4 +177,6 @@ class Snare:
         )
 
         log_capture(self._logger, record)
+        if self._db is not None:
+            self._db.save_capture(record)
         send_alert(record, self.config)

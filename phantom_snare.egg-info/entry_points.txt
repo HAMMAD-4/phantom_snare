@@ -1,2 +1,0 @@
-[console_scripts]
-phantom_snare = main:main
