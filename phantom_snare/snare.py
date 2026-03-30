@@ -32,16 +32,33 @@ class Snare:
         snare.stop()
 
     Args:
-        config: Runtime configuration.
+        config:      Runtime configuration.
+        shield:      Optional :class:`~phantom_snare.shield.Shield` instance.
+                     When provided, connections from blocked IPs receive a
+                     deceptive response instead of the normal banner.
+        deceptor:    Optional :class:`~phantom_snare.deceptor.Deceptor`.
+                     Supplies the deceptive payloads sent to blocked IPs.
+        on_capture:  Optional callback ``(CaptureRecord) -> None`` invoked
+                     after every accepted and logged connection.  Used by the
+                     Observer module for forensic analysis.
     """
 
-    def __init__(self, config: Optional[Config] = None) -> None:
+    def __init__(
+        self,
+        config: Optional[Config] = None,
+        shield=None,
+        deceptor=None,
+        on_capture=None,
+    ) -> None:
         self.config = config or Config()
         self._logger = build_logger(log_file=self.config.log_file)
         self._db: Optional[DatabaseManager] = None
         self._server_sockets: List[socket.socket] = []
         self._threads: List[threading.Thread] = []
         self._stop_event = threading.Event()
+        self._shield = shield
+        self._deceptor = deceptor
+        self._on_capture = on_capture
 
     # ------------------------------------------------------------------
     # Public API
@@ -168,10 +185,18 @@ class Snare:
     ) -> None:
         """Process a single incoming connection.
 
-        Sends the configured banner, reads any payload, logs the event, and
-        sends an email alert if configured.
+        If a Shield is attached and the connecting IP is blocked, a deceptive
+        payload is returned instead of the normal banner.  Otherwise the
+        normal banner is sent, the payload is read, the event is logged,
+        and the on_capture callback (Observer) is invoked.
         """
         remote_ip, remote_port = addr[0], addr[1]
+
+        # Shield check: blocked IPs receive a deceptive response, not a banner.
+        if self._shield is not None and not self._shield.check_and_record(remote_ip):
+            self._send_deceptive_response(client_sock, remote_ip)
+            return
+
         try:
             # Send banner to make the service look real
             if self.config.banner:
@@ -204,3 +229,38 @@ class Snare:
         if self._db is not None:
             self._db.save_capture(record)
         send_alert(record, self.config)
+
+        # Notify the Observer (forensic analysis, risk scoring, honey-token check)
+        if self._on_capture is not None:
+            try:
+                self._on_capture(record)
+            except Exception as exc:  # pylint: disable=broad-except
+                _module_logger.debug("on_capture callback error: %s", exc)
+
+    def _send_deceptive_response(
+        self, client_sock: socket.socket, remote_ip: str
+    ) -> None:
+        """Send a deceptive payload to a blocked IP and close the socket."""
+        try:
+            if self._deceptor is not None:
+                # Peek at the first bytes to decide what kind of deception to use
+                client_sock.settimeout(1.0)
+                try:
+                    probe = client_sock.recv(8, socket.MSG_PEEK)
+                except (socket.timeout, OSError):
+                    probe = b""
+
+                if any(kw in probe for kw in (b"GET", b"POST", b"HEAD", b"HTTP")):
+                    response = self._deceptor.get_deceptive_http_response(remote_ip)
+                else:
+                    response = self._deceptor.get_corrupted_payload(remote_ip)
+                client_sock.sendall(response)
+        except OSError as exc:
+            _module_logger.debug(
+                "Deceptive response error for %s: %s", remote_ip, exc
+            )
+        finally:
+            try:
+                client_sock.close()
+            except OSError:
+                pass

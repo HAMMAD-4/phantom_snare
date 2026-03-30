@@ -44,6 +44,21 @@ class Config:
     alert_smtp_user: Optional[str] = None
     alert_smtp_password: Optional[str] = None
 
+    # ----------------------------------------------------------------
+    # HIDPS module settings
+    # ----------------------------------------------------------------
+
+    # SQLite evidence database path (used by all four HIDPS modules)
+    evidence_db: str = "phantom_snare_evidence.db"
+
+    # Vault dashboard settings
+    dashboard_enabled: bool = True
+    dashboard_host: str = "127.0.0.1"
+    dashboard_port: int = 5000
+
+    # Shield rate-limit threshold (connections per 60-second rolling window)
+    max_connections_per_minute: int = 20
+
     @classmethod
     def from_file(cls, path: str) -> "Config":
         """Load configuration from a JSON file.

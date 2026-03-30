@@ -22,7 +22,7 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Topic :: Security",
 ]
-dependencies = ["mysql-connector-python>=9.3"]
+dependencies = ["mysql-connector-python>=9.3", "flask>=3.0"]
 
 [project.optional-dependencies]
 dev = ["pytest>=7.4", "pytest-cov>=4.1"]
