@@ -1,3 +1,25 @@
+Metadata-Version: 2.4
+Name: phantom_snare
+Version: 0.1.0
+Summary: A lightweight network honeypot for capturing intrusion attempts.
+Author: HAMMAD-4
+License: MIT
+Keywords: honeypot,security,intrusion-detection,network
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Information Technology
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Security
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+Provides-Extra: dev
+Requires-Dist: pytest>=7.4; extra == "dev"
+Requires-Dist: pytest-cov>=4.1; extra == "dev"
+
 # phantom_snare
 
 > A lightweight **network honeypot** that silently captures intrusion attempts, logs attacker details, and optionally sends email alerts.
