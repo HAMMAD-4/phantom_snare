@@ -14,6 +14,7 @@ Flask is launched in a background daemon thread so it does not block the
 main honeypot listeners.
 """
 
+import ipaddress
 import logging
 import os
 import threading
@@ -181,13 +182,23 @@ class Vault:
         def api_block():  # type: ignore[return]
             body = request.get_json(silent=True) or {}
             ip = str(body.get("ip", "")).strip()
-            reason = str(body.get("reason", "Manual block from Vault dashboard"))
+            reason = str(body.get("reason") or "Manual block from Vault dashboard").strip()
             if not ip:
                 return jsonify({"error": "ip is required"}), 400
+            try:
+                ipaddress.ip_address(ip)
+            except ValueError:
+                return jsonify({"error": f"Invalid IP address: {ip!r}"}), 400
             if self._shield:
                 self._shield.block_ip(ip, reason)
+                if not self._shield.is_blocked(ip):
+                    return jsonify({"error": "Failed to persist block"}), 500
             elif self._store:
                 self._store.block_ip(ip, reason)
+                if not self._store.is_blocked(ip):
+                    return jsonify({"error": "Failed to persist block"}), 500
+            else:
+                return jsonify({"error": "No shield or store available"}), 503
             return jsonify({"ok": True, "ip": ip})
 
         @app.route("/api/unblock", methods=["POST"])
@@ -196,10 +207,16 @@ class Vault:
             ip = str(body.get("ip", "")).strip()
             if not ip:
                 return jsonify({"error": "ip is required"}), 400
+            try:
+                ipaddress.ip_address(ip)
+            except ValueError:
+                return jsonify({"error": f"Invalid IP address: {ip!r}"}), 400
             if self._shield:
                 self._shield.unblock_ip(ip)
             elif self._store:
                 self._store.unblock_ip(ip)
+            else:
+                return jsonify({"error": "No shield or store available"}), 503
             return jsonify({"ok": True, "ip": ip})
 
         # ---- Honey tokens --------------------------------------------

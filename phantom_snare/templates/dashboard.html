@@ -277,7 +277,7 @@ function showAlert(msg, cls='danger') {
   const el = document.createElement('div');
   el.className = `alert alert-${cls} alert-dismissible shadow fade show py-2 px-3 mb-2`;
   el.setAttribute('role','alert');
-  el.innerHTML = `${esc(msg)}<button type="button" class="btn-close btn-close-sm ms-2" data-bs-dismiss="alert"></button>`;
+  el.innerHTML = `${esc(msg)}<button type="button" class="btn-close btn-close-sm ms-2" onclick="this.parentElement.remove()" aria-label="Close"></button>`;
   document.getElementById('live-alerts').appendChild(el);
   setTimeout(() => { try { el.remove(); } catch(e){} }, 6000);
 }
@@ -307,15 +307,23 @@ async function blockIP() {
   const ip = document.getElementById('block-ip').value.trim();
   const reason = document.getElementById('block-reason').value.trim() || 'Manual block from Vault';
   if (!ip) { showAlert('Enter an IP address.','warning'); return; }
-  const r = await apiPost('/api/block', {ip, reason});
-  if (r.ok) { showAlert(`Blocked ${ip}`,'success'); document.getElementById('block-ip').value=''; refreshBlocked(); }
-  else showAlert(r.error || 'Error');
+  try {
+    const r = await apiPost('/api/block', {ip, reason});
+    if (r.ok) { showAlert(`Blocked ${ip}`,'success'); document.getElementById('block-ip').value=''; refreshBlocked(); }
+    else showAlert(r.error || 'Error blocking IP');
+  } catch(e) {
+    showAlert('Network error: ' + e.message);
+  }
 }
 
 async function unblockIP(ip) {
-  const r = await apiPost('/api/unblock', {ip});
-  if (r.ok) { showAlert(`Unblocked ${ip}`,'success'); refreshBlocked(); }
-  else showAlert(r.error || 'Error');
+  try {
+    const r = await apiPost('/api/unblock', {ip});
+    if (r.ok) { showAlert(`Unblocked ${ip}`,'success'); refreshBlocked(); }
+    else showAlert(r.error || 'Error unblocking IP');
+  } catch(e) {
+    showAlert('Network error: ' + e.message);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -423,9 +431,13 @@ async function refreshRisk() {
 }
 
 async function blockIPDirect(ip) {
-  const r = await apiPost('/api/block', {ip, reason: 'Blocked via Risk Score dashboard'});
-  if (r.ok) { showAlert(`Blocked ${ip}`, 'success'); refreshBlocked(); }
-  else showAlert(r.error || 'Error');
+  try {
+    const r = await apiPost('/api/block', {ip, reason: 'Blocked via Risk Score dashboard'});
+    if (r.ok) { showAlert(`Blocked ${ip}`, 'success'); refreshBlocked(); }
+    else showAlert(r.error || 'Error blocking IP');
+  } catch(e) {
+    showAlert('Network error: ' + e.message);
+  }
 }
 
 // ---------------------------------------------------------------------------

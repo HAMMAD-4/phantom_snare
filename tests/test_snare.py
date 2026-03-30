@@ -7,7 +7,10 @@ import time
 import pytest
 
 from phantom_snare.config import Config
+from phantom_snare.deceptor import Deceptor
+from phantom_snare.shield import Shield
 from phantom_snare.snare import Snare
+from phantom_snare.sqlite_db import EvidenceStore
 
 
 def _free_port() -> int:
@@ -128,3 +131,106 @@ class TestSnareConnections:
         t.start()
         snare.run_forever()  # blocks until stop() is called
         t.join(timeout=2)
+
+
+# ---------------------------------------------------------------------------
+# Shield-integrated blocking tests
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def blocking_store(tmp_path):
+    s = EvidenceStore(str(tmp_path / "snare_block_test.db"))
+    s.connect()
+    yield s
+    s.close()
+
+
+class TestSnareWithShield:
+    """End-to-end tests verifying that the Shield's block list is enforced."""
+
+    REAL_BANNER = "REAL_PHANTOM_BANNER\r\n"
+
+    def _make_snare(self, port, store):
+        shield = Shield(evidence_store=store, max_connections_per_minute=1000)
+        deceptor = Deceptor(evidence_store=store)
+        cfg = Config(
+            ports=[port],
+            bind_address="127.0.0.1",
+            banner=self.REAL_BANNER,
+            log_file=None,
+        )
+        return Snare(cfg, shield=shield, deceptor=deceptor), shield
+
+    def test_non_blocked_ip_receives_real_banner(self, blocking_store):
+        """A connection from an IP that is NOT blocked gets the real banner."""
+        port = _free_port()
+        snare, shield = self._make_snare(port, blocking_store)
+        # Block a *different* IP so the shield is active
+        shield.block_ip("10.0.0.99", "decoy")
+        snare.start()
+        time.sleep(0.1)
+        try:
+            with socket.create_connection(("127.0.0.1", port), timeout=3) as conn:
+                conn.settimeout(2.0)
+                data = conn.recv(256)
+            assert data == self.REAL_BANNER.encode()
+        finally:
+            snare.stop()
+
+    def test_blocked_ip_does_not_receive_real_banner(self, blocking_store):
+        """A connection from a pre-blocked IP must NOT receive the real banner."""
+        port = _free_port()
+        snare, shield = self._make_snare(port, blocking_store)
+        shield.block_ip("127.0.0.1", "test manual block")
+        snare.start()
+        time.sleep(0.1)
+        try:
+            with socket.create_connection(("127.0.0.1", port), timeout=3) as conn:
+                conn.settimeout(2.0)
+                data = b""
+                try:
+                    data = conn.recv(4096)
+                except socket.timeout:
+                    pass
+            assert self.REAL_BANNER.encode() not in data, (
+                f"Blocked IP received the real banner: {data!r}"
+            )
+        finally:
+            snare.stop()
+
+    def test_blocked_ip_receives_deceptive_payload(self, blocking_store):
+        """A blocked IP must receive a non-empty deceptive response."""
+        port = _free_port()
+        snare, shield = self._make_snare(port, blocking_store)
+        shield.block_ip("127.0.0.1", "test manual block")
+        snare.start()
+        time.sleep(0.1)
+        try:
+            with socket.create_connection(("127.0.0.1", port), timeout=3) as conn:
+                conn.settimeout(2.0)
+                data = b""
+                try:
+                    data = conn.recv(4096)
+                except socket.timeout:
+                    pass
+            # The deceptor sends a corrupted binary payload for non-HTTP connections
+            assert len(data) > 0, "Blocked IP received empty response (expected deceptive payload)"
+        finally:
+            snare.stop()
+
+    def test_unblocked_ip_receives_real_banner_again(self, blocking_store):
+        """After unblocking, the IP must receive the real banner again."""
+        port = _free_port()
+        snare, shield = self._make_snare(port, blocking_store)
+        shield.block_ip("127.0.0.1", "temporary")
+        shield.unblock_ip("127.0.0.1")
+        snare.start()
+        time.sleep(0.1)
+        try:
+            with socket.create_connection(("127.0.0.1", port), timeout=3) as conn:
+                conn.settimeout(2.0)
+                data = conn.recv(256)
+            assert data == self.REAL_BANNER.encode()
+        finally:
+            snare.stop()
+
