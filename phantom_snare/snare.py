@@ -6,6 +6,7 @@ any payload is read, the event is logged, and an optional email alert
 is dispatched – all without blocking other listeners.
 """
 
+import errno
 import logging
 import socket
 import threading
@@ -64,10 +65,15 @@ class Snare:
 
         for port in self.config.ports:
             self._start_listener(port)
-        _module_logger.info(
-            "phantom_snare listening on ports: %s",
-            ", ".join(str(p) for p in self.config.ports),
-        )
+
+        bound_ports = [sock.getsockname()[1] for sock in self._server_sockets]
+        if bound_ports:
+            _module_logger.info(
+                "[phantom_snare] Listening on port(s): %s",
+                ", ".join(str(p) for p in bound_ports),
+            )
+        else:
+            _module_logger.error("[phantom_snare] No ports could be bound. Exiting.")
 
     def stop(self) -> None:
         """Signal all listeners to stop, close sockets, and disconnect from MySQL."""
@@ -110,7 +116,25 @@ class Snare:
             server_sock.settimeout(1.0)  # allows periodic check of stop_event
             self._server_sockets.append(server_sock)
         except OSError as exc:
-            _module_logger.error("Cannot bind to port %d: %s", port, exc)
+            # Build an actionable hint based on the specific error code.
+            win_err = getattr(exc, "winerror", None)
+            posix_err = getattr(exc, "errno", None)
+
+            if win_err == 10013 or posix_err == errno.EACCES:
+                hint = (
+                    " – permission denied. "
+                    "On Windows run as Administrator; "
+                    "on Linux/macOS run with sudo or use a port > 1024."
+                )
+            elif win_err == 10048 or posix_err == errno.EADDRINUSE:
+                hint = (
+                    f" – port {port} is already in use by another process. "
+                    "Choose a different port in your configuration."
+                )
+            else:
+                hint = ""
+
+            _module_logger.error("[phantom_snare] Cannot bind to port %d: %s%s", port, exc, hint)
             return
 
         thread = threading.Thread(

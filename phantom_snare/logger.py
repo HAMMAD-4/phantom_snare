@@ -77,10 +77,12 @@ def build_logger(name: str = "phantom_snare", log_file: Optional[str] = None) ->
     logger.setLevel(logging.DEBUG)
     formatter = logging.Formatter("%(message)s")
 
-    # Always log to stdout
-    stdout_handler = logging.StreamHandler(sys.stdout)
-    stdout_handler.setFormatter(formatter)
-    logger.addHandler(stdout_handler)
+    # Operational / status messages go to stderr so they are not mixed into
+    # the structured capture data on stdout and cannot be misinterpreted as
+    # shell commands in batch-file or pipe-based invocation patterns.
+    stderr_handler = logging.StreamHandler(sys.stderr)
+    stderr_handler.setFormatter(formatter)
+    logger.addHandler(stderr_handler)
 
     if log_file:
         file_handler = logging.FileHandler(log_file, encoding="utf-8")
