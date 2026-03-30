@@ -67,6 +67,17 @@ def build_parser() -> argparse.ArgumentParser:
         help="Disable the Vault web dashboard.",
     )
     parser.add_argument(
+        "--debug",
+        action="store_true",
+        default=True,
+        help="Enable Flask debug mode on the Vault dashboard (default: on).",
+    )
+    parser.add_argument(
+        "--no-debug",
+        action="store_true",
+        help="Disable Flask debug mode on the Vault dashboard.",
+    )
+    parser.add_argument(
         "--dump-config",
         metavar="FILE",
         help="Write the effective configuration to FILE and exit.",
@@ -101,6 +112,9 @@ def main(argv=None) -> int:
         config.dashboard_port = args.dashboard_port
     if args.no_dashboard:
         config.dashboard_enabled = False
+
+    # Debug flag: --no-debug overrides the default-on --debug
+    dashboard_debug = not args.no_debug
 
     if args.dump_config:
         config.to_file(args.dump_config)
@@ -159,6 +173,7 @@ def main(argv=None) -> int:
                 deceptor=deceptor,
                 host=config.dashboard_host,
                 port=config.dashboard_port,
+                debug=dashboard_debug,
             )
             vault.start()
             print(

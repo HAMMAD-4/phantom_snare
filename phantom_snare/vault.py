@@ -56,6 +56,7 @@ class Vault:
         deceptor=None,
         host: str = "127.0.0.1",
         port: int = 5000,
+        debug: bool = True,
     ) -> None:
         flask = _require_flask()
         self._store = evidence_store
@@ -64,6 +65,7 @@ class Vault:
         self._deceptor = deceptor
         self._host = host
         self._port = port
+        self._debug = debug
         self._thread: Optional[threading.Thread] = None
 
         self._app = flask.Flask(
@@ -92,12 +94,13 @@ class Vault:
 
     def _run_flask(self) -> None:
         import logging as _log
-        # Suppress werkzeug request logging to keep the terminal clean
-        _log.getLogger("werkzeug").setLevel(_log.WARNING)
+        if not self._debug:
+            # Suppress werkzeug request logging in production mode
+            _log.getLogger("werkzeug").setLevel(_log.WARNING)
         self._app.run(
             host=self._host,
             port=self._port,
-            debug=False,
+            debug=self._debug,
             use_reloader=False,
             threaded=True,
         )

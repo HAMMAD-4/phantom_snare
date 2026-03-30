@@ -80,11 +80,11 @@
 
   <!-- Tabs -->
   <ul class="nav nav-tabs" id="mainTabs">
-    <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-captures">Captures</button></li>
-    <li class="nav-item"><button class="nav-link"        data-bs-toggle="tab" data-bs-target="#tab-events">Events</button></li>
-    <li class="nav-item"><button class="nav-link"        data-bs-toggle="tab" data-bs-target="#tab-risk">Risk Scores</button></li>
-    <li class="nav-item"><button class="nav-link"        data-bs-toggle="tab" data-bs-target="#tab-blocked">Blocked IPs</button></li>
-    <li class="nav-item"><button class="nav-link"        data-bs-toggle="tab" data-bs-target="#tab-honey">Honey Tokens</button></li>
+    <li class="nav-item"><button class="nav-link active" data-tab="tab-captures">Captures</button></li>
+    <li class="nav-item"><button class="nav-link"        data-tab="tab-events">Events</button></li>
+    <li class="nav-item"><button class="nav-link"        data-tab="tab-risk">Risk Scores</button></li>
+    <li class="nav-item"><button class="nav-link"        data-tab="tab-blocked">Blocked IPs</button></li>
+    <li class="nav-item"><button class="nav-link"        data-tab="tab-honey">Honey Tokens</button></li>
   </ul>
 
   <div class="tab-content" id="mainTabContent">
@@ -206,6 +206,35 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
         integrity="sha384-YvpcrYf0tY3lHB60NNkmXc4s9bIOgUxi8T/jzmz7L7s0J9P/SWTq+LkR8wm8cSi"
         crossorigin="anonymous"></script>
+<script>
+// ---------------------------------------------------------------------------
+// Vanilla-JS tab switching – works even when the Bootstrap CDN is blocked.
+// ---------------------------------------------------------------------------
+function initTabs() {
+  const buttons = document.querySelectorAll('#mainTabs .nav-link[data-tab]');
+  const panes   = document.querySelectorAll('.tab-content .tab-pane');
+
+  buttons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const targetId = btn.getAttribute('data-tab');
+
+      // Update button states
+      buttons.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+
+      // Update pane visibility
+      panes.forEach(pane => {
+        if (pane.id === targetId) {
+          pane.classList.add('show', 'active');
+        } else {
+          pane.classList.remove('show', 'active');
+        }
+      });
+    });
+  });
+}
+initTabs();
+</script>
 <script>
 // ---------------------------------------------------------------------------
 // Helpers
