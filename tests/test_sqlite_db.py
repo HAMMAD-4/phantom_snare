@@ -123,3 +123,33 @@ class TestHoneyTokens:
         for _ in range(3):
             store.record_honey_token_hit("tok2", "5.5.5.5", "")
         assert store.get_honey_token_hit_count() == 3
+
+
+class TestSiteVisits:
+    def test_save_safe_visit(self, store):
+        store.save_site_visit("1.2.3.4", "example.com", "/index.html", "GET", False, "")
+        visits = store.get_recent_site_visits()
+        assert len(visits) == 1
+        v = visits[0]
+        assert v["remote_ip"] == "1.2.3.4"
+        assert v["host"] == "example.com"
+        assert v["path"] == "/index.html"
+        assert v["method"] == "GET"
+        assert v["is_harmful"] == 0
+
+    def test_save_harmful_visit(self, store):
+        store.save_site_visit("5.6.7.8", "target.com", "/.env", "GET", True, "Honey token path")
+        visits = store.get_recent_site_visits()
+        assert any(v["is_harmful"] == 1 for v in visits)
+        harmful = [v for v in visits if v["is_harmful"] == 1]
+        assert harmful[0]["harm_reason"] == "Honey token path"
+
+    def test_multiple_visits_limit(self, store):
+        for i in range(10):
+            store.save_site_visit(f"10.0.0.{i}", "host.com", f"/path{i}", "GET", False)
+        visits = store.get_recent_site_visits(limit=3)
+        assert len(visits) == 3
+
+    def test_empty_site_visits(self, store):
+        visits = store.get_recent_site_visits()
+        assert visits == []

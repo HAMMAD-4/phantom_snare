@@ -27,11 +27,12 @@
     .status-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 6px; }
     .dot-green { background: #3fb950; box-shadow: 0 0 6px #3fb950; }
     footer { color: #8b949e; font-size: .8rem; }
+    .harmful-badge { background: #da3633; color: #fff; padding: 2px 6px; border-radius: 4px; font-size: .75rem; }
+    .safe-badge    { background: #238636; color: #fff; padding: 2px 6px; border-radius: 4px; font-size: .75rem; }
   </style>
 </head>
 <body>
 
-<!-- Navbar -->
 <nav class="navbar navbar-dark" style="background:#161b22;border-bottom:1px solid #30363d;">
   <div class="container-fluid">
     <span class="navbar-brand">
@@ -45,12 +46,23 @@
   </div>
 </nav>
 
-<!-- Live alert container -->
 <div id="live-alerts" class="alert-live"></div>
+
+<div id="harmful-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:10000;align-items:center;justify-content:center;">
+  <div style="background:#161b22;border:1px solid #da3633;border-radius:10px;padding:2rem;max-width:520px;width:90%;">
+    <h5 style="color:#da3633;">⚠ Harmful URL Detected</h5>
+    <p class="mb-1"><strong>IP:</strong> <code id="modal-ip">—</code></p>
+    <p class="mb-1"><strong>URL:</strong> <code id="modal-url">—</code></p>
+    <p class="mb-3 text-muted small" id="modal-reason">—</p>
+    <div class="d-flex gap-2">
+      <button class="btn btn-danger" onclick="modalBlock()">Block this IP now</button>
+      <button class="btn btn-secondary" onclick="closeModal()">Dismiss</button>
+    </div>
+  </div>
+</div>
 
 <div class="container-fluid py-3 px-4">
 
-  <!-- Stat cards -->
   <div class="row g-3 mb-4" id="stat-row">
     <div class="col-6 col-md-3">
       <div class="stat-card">
@@ -72,24 +84,23 @@
     </div>
     <div class="col-6 col-md-3">
       <div class="stat-card">
-        <div class="label">High-Risk IPs</div>
-        <div class="value text-danger" id="stat-highrisk">—</div>
+        <div class="label">Harmful URLs</div>
+        <div class="value text-danger" id="stat-harmful">—</div>
       </div>
     </div>
   </div>
 
-  <!-- Tabs -->
   <ul class="nav nav-tabs" id="mainTabs">
     <li class="nav-item"><button class="nav-link active" data-tab="tab-captures">Captures</button></li>
     <li class="nav-item"><button class="nav-link"        data-tab="tab-events">Events</button></li>
     <li class="nav-item"><button class="nav-link"        data-tab="tab-risk">Risk Scores</button></li>
     <li class="nav-item"><button class="nav-link"        data-tab="tab-blocked">Blocked IPs</button></li>
+    <li class="nav-item"><button class="nav-link"        data-tab="tab-sites">Site Visits</button></li>
     <li class="nav-item"><button class="nav-link"        data-tab="tab-honey">Honey Tokens</button></li>
   </ul>
 
   <div class="tab-content" id="mainTabContent">
 
-    <!-- =================== CAPTURES =================== -->
     <div class="tab-pane fade show active" id="tab-captures">
       <div class="d-flex justify-content-between align-items-center mb-2">
         <span class="text-muted small">Last 50 connections · auto-refreshes every 5 s</span>
@@ -109,7 +120,6 @@
       </div>
     </div>
 
-    <!-- =================== EVENTS =================== -->
     <div class="tab-pane fade" id="tab-events">
       <div class="d-flex justify-content-between align-items-center mb-2">
         <span class="text-muted small">Forensic event log · last 100 entries</span>
@@ -126,7 +136,6 @@
       </div>
     </div>
 
-    <!-- =================== RISK SCORES =================== -->
     <div class="tab-pane fade" id="tab-risk">
       <p class="text-muted small mb-2">Per-IP risk scores computed by the Observer module (session data)</p>
       <div class="table-responsive">
@@ -139,9 +148,7 @@
       </div>
     </div>
 
-    <!-- =================== BLOCKED IPs =================== -->
     <div class="tab-pane fade" id="tab-blocked">
-      <!-- Manual block form -->
       <div class="row mb-3">
         <div class="col-md-5">
           <div class="card" style="background:#161b22;border:1px solid #30363d;">
@@ -168,7 +175,29 @@
       </div>
     </div>
 
-    <!-- =================== HONEY TOKENS =================== -->
+    <div class="tab-pane fade" id="tab-sites">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <span class="text-muted small">URLs accessed on honeypot ports · last 50 entries · auto-refreshes every 5 s</span>
+        <div class="d-flex gap-2">
+          <input type="text" class="form-control form-control-sm" id="site-filter"
+                 placeholder="Filter by IP or path…" style="min-width:180px;">
+          <select class="form-select form-select-sm" id="site-harm-filter" style="min-width:130px;">
+            <option value="">All</option>
+            <option value="1">Harmful only</option>
+            <option value="0">Safe only</option>
+          </select>
+        </div>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-dark table-sm table-hover" id="sites-table">
+          <thead>
+            <tr><th>Timestamp</th><th>Source IP</th><th>Method</th><th>Host</th><th>Path</th><th>Status</th><th>Reason</th><th>Action</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
     <div class="tab-pane fade" id="tab-honey">
       <div class="row">
         <div class="col-lg-4 mb-3">
@@ -194,8 +223,8 @@
       </div>
     </div>
 
-  </div><!-- /tab-content -->
-</div><!-- /container -->
+  </div>
+</div>
 
 <footer class="text-center py-3">
   Phantom-Snare HIDPS &nbsp;·&nbsp;
@@ -207,22 +236,14 @@
         integrity="sha384-YvpcrYf0tY3lHB60NNkmXc4s9bIOgUxi8T/jzmz7L7s0J9P/SWTq+LkR8wm8cSi"
         crossorigin="anonymous"></script>
 <script>
-// ---------------------------------------------------------------------------
-// Vanilla-JS tab switching – works even when the Bootstrap CDN is blocked.
-// ---------------------------------------------------------------------------
 function initTabs() {
   const buttons = document.querySelectorAll('#mainTabs .nav-link[data-tab]');
   const panes   = document.querySelectorAll('.tab-content .tab-pane');
-
   buttons.forEach(btn => {
     btn.addEventListener('click', () => {
       const targetId = btn.getAttribute('data-tab');
-
-      // Update button states
       buttons.forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
-
-      // Update pane visibility
       panes.forEach(pane => {
         if (pane.id === targetId) {
           pane.classList.add('show', 'active');
@@ -236,9 +257,6 @@ function initTabs() {
 initTabs();
 </script>
 <script>
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 function esc(s) {
   if (s == null) return '';
   return String(s)
@@ -261,6 +279,7 @@ function eventBadge(type) {
   const map = {
     HIGH_RISK_CONNECTION: 'danger', SHIELD_BLOCK: 'danger', SHIELD_AUTO_BLOCK: 'danger',
     HONEY_TOKEN_HIT: 'warning', CREDENTIAL_PROBE: 'warning', TRAVERSAL_ATTEMPT: 'warning',
+    HARMFUL_URL_DETECTED: 'danger',
     HTTP_PROBE: 'info', MEDIUM_RISK_CONNECTION: 'secondary',
     PORT_SCAN_PROBE: 'secondary', SHIELD_UNBLOCK: 'success',
   };
@@ -268,12 +287,8 @@ function eventBadge(type) {
   return `<span class="badge text-bg-${c}">${esc(type)}</span>`;
 }
 
-// ---------------------------------------------------------------------------
-// Toast-style live alert
-// ---------------------------------------------------------------------------
 let _alertQueue = [];
 function showAlert(msg, cls='danger') {
-  const id = 'alert-' + Date.now();
   const el = document.createElement('div');
   el.className = `alert alert-${cls} alert-dismissible shadow fade show py-2 px-3 mb-2`;
   el.setAttribute('role','alert');
@@ -282,9 +297,6 @@ function showAlert(msg, cls='danger') {
   setTimeout(() => { try { el.remove(); } catch(e){} }, 6000);
 }
 
-// ---------------------------------------------------------------------------
-// API calls
-// ---------------------------------------------------------------------------
 async function apiFetch(url) {
   const r = await fetch(url);
   if (!r.ok) throw new Error(r.statusText);
@@ -300,9 +312,6 @@ async function apiPost(url, body) {
   return r.json();
 }
 
-// ---------------------------------------------------------------------------
-// Block / Unblock
-// ---------------------------------------------------------------------------
 async function blockIP() {
   const ip = document.getElementById('block-ip').value.trim();
   const reason = document.getElementById('block-reason').value.trim() || 'Manual block from Vault';
@@ -326,9 +335,61 @@ async function unblockIP(ip) {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Captures tab
-// ---------------------------------------------------------------------------
+async function blockIPDirect(ip) {
+  try {
+    const r = await apiPost('/api/block', {ip, reason: 'Blocked via Risk Score dashboard'});
+    if (r.ok) { showAlert(`Blocked ${ip}`, 'success'); refreshBlocked(); }
+    else showAlert(r.error || 'Error blocking IP');
+  } catch(e) {
+    showAlert('Network error: ' + e.message);
+  }
+}
+
+async function blockIPFromSite(ip) {
+  try {
+    const r = await apiPost('/api/block', {ip, reason: 'Blocked via Site Visits — harmful URL'});
+    if (r.ok) { showAlert(`Blocked ${ip}`, 'success'); refreshBlocked(); refreshSiteVisits(); }
+    else showAlert(r.error || 'Error blocking IP');
+  } catch(e) {
+    showAlert('Network error: ' + e.message);
+  }
+}
+
+let _modalIP = '';
+function showHarmfulModal(ip, url, reason) {
+  _modalIP = ip;
+  document.getElementById('modal-ip').textContent = ip;
+  document.getElementById('modal-url').textContent = url;
+  document.getElementById('modal-reason').textContent = reason || '';
+  const m = document.getElementById('harmful-modal');
+  m.style.display = 'flex';
+  switchTab('tab-sites');
+}
+
+function closeModal() {
+  document.getElementById('harmful-modal').style.display = 'none';
+  _modalIP = '';
+}
+
+async function modalBlock() {
+  if (!_modalIP) return;
+  await blockIPFromSite(_modalIP);
+  closeModal();
+}
+
+function switchTab(tabId) {
+  const buttons = document.querySelectorAll('#mainTabs .nav-link[data-tab]');
+  const panes   = document.querySelectorAll('.tab-content .tab-pane');
+  buttons.forEach(b => {
+    if (b.getAttribute('data-tab') === tabId) b.classList.add('active');
+    else b.classList.remove('active');
+  });
+  panes.forEach(p => {
+    if (p.id === tabId) p.classList.add('show','active');
+    else p.classList.remove('show','active');
+  });
+}
+
 let _captureFilter = '';
 document.getElementById('capture-filter').addEventListener('input', e => {
   _captureFilter = e.target.value.toLowerCase();
@@ -360,9 +421,6 @@ function renderCaptures(rows) {
     </tr>`).join('');
 }
 
-// ---------------------------------------------------------------------------
-// Events tab
-// ---------------------------------------------------------------------------
 let _eventFilter = '';
 document.getElementById('event-filter').addEventListener('input', e => {
   _eventFilter = e.target.value.toLowerCase();
@@ -405,9 +463,6 @@ function renderEvents(rows) {
     </tr>`).join('');
 }
 
-// ---------------------------------------------------------------------------
-// Risk scores tab
-// ---------------------------------------------------------------------------
 async function refreshRisk() {
   const data = await apiFetch('/api/risk_scores');
   const tbody = document.querySelector('#risk-table tbody');
@@ -427,22 +482,8 @@ async function refreshRisk() {
       </td>
     </tr>`).join('');
   const highRisk = data.filter(r => r.risk_level === 'HIGH').length;
-  document.getElementById('stat-highrisk').textContent = highRisk;
 }
 
-async function blockIPDirect(ip) {
-  try {
-    const r = await apiPost('/api/block', {ip, reason: 'Blocked via Risk Score dashboard'});
-    if (r.ok) { showAlert(`Blocked ${ip}`, 'success'); refreshBlocked(); }
-    else showAlert(r.error || 'Error blocking IP');
-  } catch(e) {
-    showAlert('Network error: ' + e.message);
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Blocked IPs tab
-// ---------------------------------------------------------------------------
 async function refreshBlocked() {
   const data = await apiFetch('/api/blocked');
   const tbody = document.querySelector('#blocked-table tbody');
@@ -458,9 +499,72 @@ async function refreshBlocked() {
   document.getElementById('stat-blocked').textContent = data.length;
 }
 
-// ---------------------------------------------------------------------------
-// Honey tokens tab
-// ---------------------------------------------------------------------------
+let _lastSiteVisits = [];
+let _prevHarmfulCount = 0;
+let _siteFilter = '';
+let _siteHarmFilter = '';
+
+document.getElementById('site-filter').addEventListener('input', e => {
+  _siteFilter = e.target.value.toLowerCase();
+  renderSiteVisits(_lastSiteVisits);
+});
+document.getElementById('site-harm-filter').addEventListener('change', e => {
+  _siteHarmFilter = e.target.value;
+  renderSiteVisits(_lastSiteVisits);
+});
+
+async function refreshSiteVisits() {
+  try {
+    const data = await apiFetch('/api/site_visits?limit=50');
+    const newHarmful = data.filter(v => v.is_harmful);
+    const harmfulCount = newHarmful.length;
+
+    if (harmfulCount > _prevHarmfulCount && _prevHarmfulCount >= 0) {
+      const newest = newHarmful[0];
+      if (newest && _prevHarmfulCount > 0) {
+        const url = (newest.method ? newest.method + ' ' : '') + (newest.host || '') + (newest.path || '');
+        showHarmfulModal(newest.remote_ip, url, newest.harm_reason || '');
+      }
+    }
+    _prevHarmfulCount = harmfulCount;
+    document.getElementById('stat-harmful').textContent = harmfulCount;
+    _lastSiteVisits = data;
+    renderSiteVisits(data);
+  } catch(e) {}
+}
+
+function renderSiteVisits(rows) {
+  const tbody = document.querySelector('#sites-table tbody');
+  let filtered = rows;
+  if (_siteFilter) {
+    filtered = filtered.filter(r =>
+      String(r.remote_ip).toLowerCase().includes(_siteFilter) ||
+      String(r.path || '').toLowerCase().includes(_siteFilter) ||
+      String(r.host || '').toLowerCase().includes(_siteFilter));
+  }
+  if (_siteHarmFilter !== '') {
+    const wantHarmful = _siteHarmFilter === '1';
+    filtered = filtered.filter(r => Boolean(r.is_harmful) === wantHarmful);
+  }
+  tbody.innerHTML = filtered.map(r => {
+    const statusBadge = r.is_harmful
+      ? '<span class="harmful-badge">HARMFUL</span>'
+      : '<span class="safe-badge">SAFE</span>';
+    const blockBtn = !r.is_harmful ? '' :
+      `<button class="btn btn-danger btn-sm" onclick="blockIPFromSite('${esc(r.remote_ip)}')">Block IP</button>`;
+    return `<tr class="${r.is_harmful ? 'table-danger' : ''}">
+      <td class="text-nowrap">${fmt(r.timestamp)}</td>
+      <td><code>${esc(r.remote_ip)}</code></td>
+      <td><span class="badge text-bg-secondary">${esc(r.method || '—')}</span></td>
+      <td>${esc(r.host || '—')}</td>
+      <td><code>${esc(r.path || '—')}</code></td>
+      <td>${statusBadge}</td>
+      <td><small class="text-muted">${esc(r.harm_reason || '')}</small></td>
+      <td>${blockBtn}</td>
+    </tr>`;
+  }).join('');
+}
+
 async function refreshHoney() {
   const data = await apiFetch('/api/honey_tokens');
   const tokBody = document.querySelector('#tokens-table tbody');
@@ -481,9 +585,6 @@ async function refreshHoney() {
   document.getElementById('stat-honey').textContent = (data.hits || []).length;
 }
 
-// ---------------------------------------------------------------------------
-// Status poll
-// ---------------------------------------------------------------------------
 async function refreshStatus() {
   try {
     const s = await apiFetch('/api/status');
@@ -497,9 +598,6 @@ async function refreshStatus() {
     'Refreshed ' + new Date().toLocaleTimeString();
 }
 
-// ---------------------------------------------------------------------------
-// Main refresh loop
-// ---------------------------------------------------------------------------
 async function refreshAll() {
   await Promise.allSettled([
     refreshStatus(),
@@ -507,6 +605,7 @@ async function refreshAll() {
     refreshEvents(),
     refreshRisk(),
     refreshBlocked(),
+    refreshSiteVisits(),
     refreshHoney(),
   ]);
 }

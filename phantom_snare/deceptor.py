@@ -1,22 +1,3 @@
-"""Module 3: Deceptor – Active Deception & Data Poisoning.
-
-The Deceptor is phantom_snare's active-defence layer.  It operates in three
-ways:
-
-1. **Honey-Tokening** – Fake high-value paths (``/.env``, ``/wp-admin``,
-   ``/passwords.txt``, etc.) are pre-registered.  When the Observer detects
-   that an incoming HTTP request targets one of these paths the Deceptor
-   records the hit as high-confidence evidence of malicious intent.
-
-2. **Deceptive HTTP responses** – Blocked IPs that send HTTP traffic receive
-   a convincing fake login page that contains plausible-but-useless
-   credentials in HTML comments (data poisoning).
-
-3. **Corrupted binary payloads** – Non-HTTP blocked connections receive
-   a ZIP-magic-prefixed binary blob that appears to be a valid archive but
-   contains only garbage, designed to waste the attacker's parsing resources.
-"""
-
 import logging
 import os
 import random
@@ -25,10 +6,6 @@ import uuid
 from typing import List, Optional
 
 _module_logger = logging.getLogger("phantom_snare.deceptor")
-
-# ---------------------------------------------------------------------------
-# Honey-token path registry
-# ---------------------------------------------------------------------------
 
 _HONEY_PATHS: List[str] = [
     "/admin",
@@ -57,10 +34,6 @@ _HONEY_PATHS: List[str] = [
     "/etc/shadow",
     "/proc/version",
 ]
-
-# ---------------------------------------------------------------------------
-# Deceptive HTTP response template
-# ---------------------------------------------------------------------------
 
 _DECEPTIVE_HTTP_TEMPLATE = (
     "HTTP/1.1 200 OK\r\n"
@@ -99,28 +72,15 @@ def _random_password(length: int = 18) -> str:
 
 
 def _make_corrupted_payload(size_bytes: int = 32_768) -> bytes:
-    """Return a ZIP-magic-prefixed binary blob that looks valid but is garbage.
-
-    Designed to waste attacker parser resources (zip-bomb style).
-    """
-    # ZIP local file header signature
     header = b"PK\x03\x04\x14\x00\x00\x00\x08\x00"
     marker = b"PHANTOM_SNARE_DECEPTION_PAYLOAD_v1\r\n"
-    # Pad with pseudo-random bytes to the requested size
     payload = header + marker
     remaining = max(0, size_bytes - len(payload))
     payload += os.urandom(remaining)
     return payload[:size_bytes]
 
 
-# ---------------------------------------------------------------------------
-# HoneyToken data class
-# ---------------------------------------------------------------------------
-
-
 class HoneyToken:
-    """A single registered honey-token path."""
-
     def __init__(self, path: str, description: str = "") -> None:
         self.token_id: str = str(uuid.uuid4())
         self.path: str = path
@@ -137,27 +97,11 @@ class HoneyToken:
         return f"HoneyToken(path={self.path!r})"
 
 
-# ---------------------------------------------------------------------------
-# Deceptor class
-# ---------------------------------------------------------------------------
-
-
 class Deceptor:
-    """Active-deception module.
-
-    Args:
-        evidence_store: Shared SQLite evidence store.  Used to persist
-            honey-token hits and forensic events.
-    """
-
     def __init__(self, evidence_store=None) -> None:
         self._store = evidence_store
         self._tokens: List[HoneyToken] = []
         self._register_default_tokens()
-
-    # ------------------------------------------------------------------
-    # Honey-token management
-    # ------------------------------------------------------------------
 
     def _register_default_tokens(self) -> None:
         for path in _HONEY_PATHS:
@@ -172,27 +116,15 @@ class Deceptor:
         )
 
     def get_honey_tokens(self) -> List[dict]:
-        """Return all registered honey tokens as a list of dicts."""
         return [t.to_dict() for t in self._tokens]
 
     def get_honey_token_paths(self) -> List[str]:
-        """Return all honey-token paths."""
         return [t.path for t in self._tokens]
 
     def check_honey_token(
         self, path: str, remote_ip: str, details: str = ""
     ) -> Optional[str]:
-        """Check whether *path* matches a honey token and record a hit.
-
-        Args:
-            path:      URL path from the HTTP request.
-            remote_ip: Connecting IP address.
-            details:   Extra context (e.g. first line of request).
-
-        Returns:
-            The ``token_id`` if a match is found, otherwise ``None``.
-        """
-        path_lower = path.lower().split("?", 1)[0]  # strip query string
+        path_lower = path.lower().split("?", 1)[0]
         for token in self._tokens:
             token_lower = token.path.lower()
             if path_lower == token_lower or path_lower.startswith(token_lower):
@@ -213,16 +145,7 @@ class Deceptor:
                 return token.token_id
         return None
 
-    # ------------------------------------------------------------------
-    # Deceptive payload generators
-    # ------------------------------------------------------------------
-
     def get_deceptive_http_response(self, remote_ip: str = "unknown") -> bytes:
-        """Return a convincing but fake HTTP 200 response.
-
-        The HTML body contains plausible-but-garbage database credentials
-        in an HTML comment to poison the attacker's data collection.
-        """
         session_id = _random_hex(26)
         csrf_token = _random_hex(32)
         fake_db_password = _random_password()
@@ -240,11 +163,6 @@ class Deceptor:
     def get_corrupted_payload(
         self, remote_ip: str = "unknown", size_bytes: int = 32_768
     ) -> bytes:
-        """Return a corrupted binary payload for non-HTTP connections.
-
-        The payload has a valid ZIP header but garbage content, intended to
-        consume parser resources on the attacker's infrastructure.
-        """
         _module_logger.info(
             "[Deceptor] Sending %d-byte corrupted payload to %s",
             size_bytes,
@@ -253,10 +171,6 @@ class Deceptor:
         return _make_corrupted_payload(size_bytes)
 
     def get_fake_financial_data(self) -> bytes:
-        """Return a fake financial CSV that looks like a real export.
-
-        Placed in honey-token paths to satisfy directory crawlers.
-        """
         lines = [b"Account,Holder,Balance,IBAN\r\n"]
         for _ in range(20):
             account = "".join(random.choices(string.digits, k=10))

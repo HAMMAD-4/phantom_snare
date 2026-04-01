@@ -121,3 +121,49 @@ class TestObserverRiskSummary:
         obs.on_capture(_make_record(ip="low-risk"))
         summary = obs.get_ip_risk_summary()
         assert summary[0]["ip"] == "high-risk"
+
+
+class TestObserverUrlClassification:
+    def test_honey_path_classified_harmful(self, store):
+        from phantom_snare.deceptor import Deceptor
+        deceptor = Deceptor(evidence_store=store)
+        obs = Observer(evidence_store=store, deceptor=deceptor)
+        payload = b"GET /.env HTTP/1.1\r\nHost: target.com\r\n\r\n"
+        obs.on_capture(_make_record(payload=payload))
+        visits = store.get_recent_site_visits()
+        harmful = [v for v in visits if v["is_harmful"] == 1]
+        assert len(harmful) >= 1
+        assert "/.env" in harmful[0]["path"] or harmful[0]["harm_reason"]
+
+    def test_safe_path_not_harmful(self, store):
+        obs = Observer(evidence_store=store)
+        payload = b"GET /index.html HTTP/1.1\r\nHost: example.com\r\n\r\n"
+        obs.on_capture(_make_record(payload=payload))
+        visits = store.get_recent_site_visits()
+        assert len(visits) >= 1
+        assert visits[0]["is_harmful"] == 0
+
+    def test_harmful_url_event_logged(self, store):
+        from phantom_snare.deceptor import Deceptor
+        deceptor = Deceptor(evidence_store=store)
+        obs = Observer(evidence_store=store, deceptor=deceptor)
+        payload = b"GET /wp-admin HTTP/1.1\r\nHost: victim.com\r\n\r\n"
+        obs.on_capture(_make_record(payload=payload))
+        events = store.get_recent_events()
+        types = [e["event_type"] for e in events]
+        assert "HARMFUL_URL_DETECTED" in types
+
+    def test_host_extracted_from_payload(self, store):
+        obs = Observer(evidence_store=store)
+        payload = b"GET /page HTTP/1.1\r\nHost: mysite.example.com\r\n\r\n"
+        obs.on_capture(_make_record(payload=payload))
+        visits = store.get_recent_site_visits()
+        assert visits[0]["host"] == "mysite.example.com"
+
+    def test_traversal_path_classified_harmful(self, store):
+        obs = Observer(evidence_store=store)
+        payload = b"GET /../etc/passwd HTTP/1.1\r\nHost: h\r\n\r\n"
+        obs.on_capture(_make_record(payload=payload))
+        visits = store.get_recent_site_visits()
+        harmful = [v for v in visits if v["is_harmful"] == 1]
+        assert len(harmful) >= 1

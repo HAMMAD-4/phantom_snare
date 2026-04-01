@@ -10,16 +10,7 @@ if TYPE_CHECKING:
 
 _module_logger = logging.getLogger("phantom_snare.alerts")
 
-
 def send_alert(record: "CaptureRecord", config: "Config") -> None:
-    """Send an email alert for a captured connection.
-
-    Does nothing silently if email alerts are not fully configured.
-
-    Args:
-        record: The capture event that triggered the alert.
-        config: Runtime configuration (must have all SMTP fields set).
-    """
     if not config.email_alerts_enabled:
         return
 
@@ -54,5 +45,5 @@ def send_alert(record: "CaptureRecord", config: "Config") -> None:
                 config.alert_email_to,  # type: ignore[arg-type]
                 msg.as_string(),
             )
-    except Exception as exc:  # pylint: disable=broad-except
+    except Exception as exc:
         _module_logger.warning("Failed to send email alert: %s", exc)

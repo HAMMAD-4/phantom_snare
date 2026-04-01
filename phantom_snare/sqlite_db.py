@@ -1,12 +1,3 @@
-"""SQLite evidence store for phantom_snare HIDPS.
-
-Provides the shared persistence layer used by all four modules:
-- Observer writes capture records and forensic events
-- Shield reads/writes the blocked-IP table
-- Deceptor writes honey-token hits
-- Vault reads everything for the dashboard
-"""
-
 import logging
 import sqlite3
 import threading
@@ -14,10 +5,6 @@ from datetime import datetime, timezone
 from typing import List, Optional
 
 _module_logger = logging.getLogger("phantom_snare.sqlite_db")
-
-# ---------------------------------------------------------------------------
-# Schema DDL (run once on connect)
-# ---------------------------------------------------------------------------
 
 _DDL_STATEMENTS = [
     """
@@ -73,31 +60,31 @@ _DDL_STATEMENTS = [
     """,
     "CREATE INDEX IF NOT EXISTS idx_hth_token_id  ON honey_token_hits (token_id)",
     "CREATE INDEX IF NOT EXISTS idx_hth_remote_ip ON honey_token_hits (remote_ip)",
+    """
+    CREATE TABLE IF NOT EXISTS site_visits (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        timestamp   TEXT NOT NULL,
+        remote_ip   TEXT NOT NULL,
+        host        TEXT,
+        path        TEXT,
+        method      TEXT,
+        is_harmful  INTEGER NOT NULL DEFAULT 0,
+        harm_reason TEXT,
+        created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_sv_remote_ip  ON site_visits (remote_ip)",
+    "CREATE INDEX IF NOT EXISTS idx_sv_is_harmful ON site_visits (is_harmful)",
 ]
 
 
 class EvidenceStore:
-    """Thread-safe SQLite evidence store.
-
-    All write operations are serialised through a single lock so this
-    instance can be shared safely across the listener threads.
-
-    Args:
-        db_path: Path to the SQLite database file. Defaults to
-            ``"phantom_snare_evidence.db"`` in the current working directory.
-    """
-
     def __init__(self, db_path: str = "phantom_snare_evidence.db") -> None:
         self._db_path = db_path
         self._lock = threading.Lock()
         self._conn: Optional[sqlite3.Connection] = None
 
-    # ------------------------------------------------------------------
-    # Lifecycle
-    # ------------------------------------------------------------------
-
     def connect(self) -> None:
-        """Open the database and bootstrap the schema."""
         self._conn = sqlite3.connect(self._db_path, check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
         self._conn.execute("PRAGMA journal_mode=WAL")
@@ -106,11 +93,10 @@ class EvidenceStore:
         _module_logger.info("[EvidenceStore] Connected to %s", self._db_path)
 
     def close(self) -> None:
-        """Close the database connection."""
         if self._conn is not None:
             try:
                 self._conn.close()
-            except Exception:  # pylint: disable=broad-except
+            except Exception:
                 pass
             finally:
                 self._conn = None
@@ -129,12 +115,10 @@ class EvidenceStore:
             self._conn.commit()  # type: ignore[union-attr]
         _module_logger.debug("[EvidenceStore] Schema bootstrap complete.")
 
-    # ------------------------------------------------------------------
-    # Captures
-    # ------------------------------------------------------------------
+    def is_connected(self) -> bool:
+        return self._conn is not None
 
     def save_capture(self, record: object) -> None:
-        """Persist a :class:`~phantom_snare.logger.CaptureRecord` to the DB."""
         with self._lock:
             try:
                 self._conn.execute(  # type: ignore[union-attr]
@@ -152,11 +136,10 @@ class EvidenceStore:
                     ),
                 )
                 self._conn.commit()  # type: ignore[union-attr]
-            except Exception as exc:  # pylint: disable=broad-except
+            except Exception as exc:
                 _module_logger.error("[EvidenceStore] save_capture failed: %s", exc)
 
     def get_recent_captures(self, limit: int = 50) -> List[dict]:
-        """Return the *limit* most recent captures, newest first."""
         with self._lock:
             rows = self._conn.execute(  # type: ignore[union-attr]
                 """SELECT id, timestamp, remote_ip, remote_port, local_port,
@@ -168,7 +151,6 @@ class EvidenceStore:
         return [dict(r) for r in rows]
 
     def get_ip_stats(self) -> List[dict]:
-        """Return aggregated per-IP statistics."""
         with self._lock:
             rows = self._conn.execute(  # type: ignore[union-attr]
                 """SELECT remote_ip,
@@ -181,14 +163,9 @@ class EvidenceStore:
             ).fetchall()
         return [dict(r) for r in rows]
 
-    # ------------------------------------------------------------------
-    # Events
-    # ------------------------------------------------------------------
-
     def save_event(
         self, event_type: str, remote_ip: str, details: str = ""
     ) -> None:
-        """Log a forensic event (risk alert, block action, honey hit, etc.)."""
         with self._lock:
             try:
                 self._conn.execute(  # type: ignore[union-attr]
@@ -202,23 +179,17 @@ class EvidenceStore:
                     ),
                 )
                 self._conn.commit()  # type: ignore[union-attr]
-            except Exception as exc:  # pylint: disable=broad-except
+            except Exception as exc:
                 _module_logger.error("[EvidenceStore] save_event failed: %s", exc)
 
     def get_recent_events(self, limit: int = 100) -> List[dict]:
-        """Return the *limit* most recent events, newest first."""
         with self._lock:
             rows = self._conn.execute(  # type: ignore[union-attr]
                 "SELECT * FROM events ORDER BY id DESC LIMIT ?", (limit,)
             ).fetchall()
         return [dict(r) for r in rows]
 
-    # ------------------------------------------------------------------
-    # Blocked IPs
-    # ------------------------------------------------------------------
-
     def block_ip(self, ip: str, reason: str = "") -> None:
-        """Add or update an IP in the blocklist."""
         with self._lock:
             try:
                 self._conn.execute(  # type: ignore[union-attr]
@@ -227,22 +198,20 @@ class EvidenceStore:
                     (ip, reason, datetime.now(tz=timezone.utc).isoformat()),
                 )
                 self._conn.commit()  # type: ignore[union-attr]
-            except Exception as exc:  # pylint: disable=broad-except
+            except Exception as exc:
                 _module_logger.error("[EvidenceStore] block_ip failed: %s", exc)
 
     def unblock_ip(self, ip: str) -> None:
-        """Remove an IP from the blocklist."""
         with self._lock:
             try:
                 self._conn.execute(  # type: ignore[union-attr]
                     "DELETE FROM blocked_ips WHERE ip = ?", (ip,)
                 )
                 self._conn.commit()  # type: ignore[union-attr]
-            except Exception as exc:  # pylint: disable=broad-except
+            except Exception as exc:
                 _module_logger.error("[EvidenceStore] unblock_ip failed: %s", exc)
 
     def is_blocked(self, ip: str) -> bool:
-        """Return *True* if *ip* is in the blocklist."""
         with self._lock:
             row = self._conn.execute(  # type: ignore[union-attr]
                 "SELECT ip FROM blocked_ips WHERE ip = ?", (ip,)
@@ -250,21 +219,15 @@ class EvidenceStore:
         return row is not None
 
     def get_blocked_ips(self) -> List[dict]:
-        """Return all blocked IPs with reason and timestamp."""
         with self._lock:
             rows = self._conn.execute(  # type: ignore[union-attr]
                 "SELECT ip, reason, blocked_at FROM blocked_ips ORDER BY blocked_at DESC"
             ).fetchall()
         return [dict(r) for r in rows]
 
-    # ------------------------------------------------------------------
-    # Honey tokens
-    # ------------------------------------------------------------------
-
     def register_honey_token(
         self, token_id: str, path: str, description: str = ""
     ) -> None:
-        """Register a honey-token path in the database."""
         with self._lock:
             try:
                 self._conn.execute(  # type: ignore[union-attr]
@@ -273,13 +236,12 @@ class EvidenceStore:
                     (token_id, path, description),
                 )
                 self._conn.commit()  # type: ignore[union-attr]
-            except Exception as exc:  # pylint: disable=broad-except
+            except Exception as exc:
                 _module_logger.error("[EvidenceStore] register_honey_token failed: %s", exc)
 
     def record_honey_token_hit(
         self, token_id: str, remote_ip: str, details: str = ""
     ) -> None:
-        """Record that a honey-token was accessed."""
         with self._lock:
             try:
                 self._conn.execute(  # type: ignore[union-attr]
@@ -293,13 +255,12 @@ class EvidenceStore:
                     ),
                 )
                 self._conn.commit()  # type: ignore[union-attr]
-            except Exception as exc:  # pylint: disable=broad-except
+            except Exception as exc:
                 _module_logger.error(
                     "[EvidenceStore] record_honey_token_hit failed: %s", exc
                 )
 
     def get_honey_token_hits(self, limit: int = 50) -> List[dict]:
-        """Return the *limit* most recent honey-token hits."""
         with self._lock:
             rows = self._conn.execute(  # type: ignore[union-attr]
                 """SELECT h.id, h.token_id, h.remote_ip, h.timestamp, h.details,
@@ -312,9 +273,48 @@ class EvidenceStore:
         return [dict(r) for r in rows]
 
     def get_honey_token_hit_count(self) -> int:
-        """Return total number of honey-token hits."""
         with self._lock:
             row = self._conn.execute(  # type: ignore[union-attr]
                 "SELECT COUNT(*) FROM honey_token_hits"
             ).fetchone()
         return row[0] if row else 0
+
+    def save_site_visit(
+        self,
+        remote_ip: str,
+        host: str,
+        path: str,
+        method: str,
+        is_harmful: bool,
+        harm_reason: str = "",
+    ) -> None:
+        with self._lock:
+            try:
+                self._conn.execute(  # type: ignore[union-attr]
+                    """INSERT INTO site_visits
+                           (timestamp, remote_ip, host, path, method, is_harmful, harm_reason)
+                       VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                    (
+                        datetime.now(tz=timezone.utc).isoformat(),
+                        remote_ip,
+                        host,
+                        path,
+                        method,
+                        1 if is_harmful else 0,
+                        harm_reason,
+                    ),
+                )
+                self._conn.commit()  # type: ignore[union-attr]
+            except Exception as exc:
+                _module_logger.error("[EvidenceStore] save_site_visit failed: %s", exc)
+
+    def get_recent_site_visits(self, limit: int = 50) -> List[dict]:
+        with self._lock:
+            rows = self._conn.execute(  # type: ignore[union-attr]
+                """SELECT id, timestamp, remote_ip, host, path, method,
+                          is_harmful, harm_reason
+                   FROM site_visits
+                   ORDER BY id DESC LIMIT ?""",
+                (limit,),
+            ).fetchall()
+        return [dict(r) for r in rows]

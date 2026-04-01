@@ -76,7 +76,6 @@ def main(argv=None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
-  
     if args.config:
         try:
             config = Config.from_file(args.config)
@@ -86,7 +85,6 @@ def main(argv=None) -> int:
     else:
         config = Config()
 
-    # CLI overrides
     if args.ports:
         config.ports = args.ports
     if args.bind:
@@ -98,7 +96,6 @@ def main(argv=None) -> int:
     if args.no_dashboard:
         config.dashboard_enabled = False
 
-    # flag debug
     dashboard_debug = not args.no_debug
 
     if args.dump_config:
@@ -106,16 +103,13 @@ def main(argv=None) -> int:
         print(f"Configuration written to {args.dump_config}")
         return 0
 
-
     store = EvidenceStore(db_path=config.evidence_db)
     store.connect()
 
-   
     shield = Shield(
         evidence_store=store,
         max_connections_per_minute=config.max_connections_per_minute,
     )
-
 
     deceptor = Deceptor(evidence_store=store)
 
@@ -125,7 +119,6 @@ def main(argv=None) -> int:
         deceptor=deceptor,
     )
 
-    
     snare = Snare(
         config=config,
         shield=shield,
@@ -133,11 +126,10 @@ def main(argv=None) -> int:
         on_capture=observer.on_capture,
     )
 
-
     vault = None
     if config.dashboard_enabled:
         try:
-            from phantom_snare.vault import Vault 
+            from phantom_snare.vault import Vault
             vault = Vault(
                 evidence_store=store,
                 shield=shield,
@@ -155,7 +147,6 @@ def main(argv=None) -> int:
         except RuntimeError as exc:
             print(f"[phantom_snare] Dashboard disabled: {exc}", file=sys.stderr)
 
-    
     try:
         snare.run_forever()
     finally:
@@ -166,4 +157,3 @@ def main(argv=None) -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
-

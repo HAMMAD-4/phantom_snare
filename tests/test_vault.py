@@ -191,14 +191,17 @@ class TestApiEvents:
         assert isinstance(r.get_json(), list)
 
 
-class TestApiBlocked:
-    def test_blocked_returns_list(self, client):
-        r = client.get("/api/blocked")
+class TestApiSiteVisits:
+    def test_site_visits_returns_list(self, client):
+        r = client.get("/api/site_visits")
         assert r.status_code == 200
         assert isinstance(r.get_json(), list)
 
-    def test_blocked_shows_entry(self, client, store):
-        store.block_ip("3.3.3.3", "manual")
-        r = client.get("/api/blocked")
-        ips = [e["ip"] for e in r.get_json()]
-        assert "3.3.3.3" in ips
+    def test_site_visits_shows_entry(self, client, store):
+        store.save_site_visit("1.2.3.4", "evil.com", "/.env", "GET", True, "Honey token")
+        r = client.get("/api/site_visits")
+        data = r.get_json()
+        assert len(data) >= 1
+        harmful = [v for v in data if v["is_harmful"] == 1]
+        assert len(harmful) >= 1
+        assert harmful[0]["remote_ip"] == "1.2.3.4"

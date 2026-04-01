@@ -1,5 +1,3 @@
-"""Structured logging for phantom_snare capture events."""
-
 import json
 import logging
 import sys
@@ -8,8 +6,6 @@ from typing import Optional
 
 
 class CaptureRecord:
-    """Represents a single captured connection attempt."""
-
     def __init__(
         self,
         *,
@@ -25,16 +21,10 @@ class CaptureRecord:
         self.payload = payload
         self.timestamp = timestamp or datetime.now(tz=timezone.utc)
 
-    # ------------------------------------------------------------------
-    # Representation helpers
-    # ------------------------------------------------------------------
-
     def payload_text(self) -> str:
-        """Return the payload decoded as UTF-8, replacing undecodable bytes."""
         return self.payload.decode("utf-8", errors="replace")
 
     def to_dict(self) -> dict:
-        """Serialise the record to a plain dictionary."""
         return {
             "timestamp": self.timestamp.isoformat(),
             "remote_ip": self.remote_ip,
@@ -45,7 +35,6 @@ class CaptureRecord:
         }
 
     def to_json(self) -> str:
-        """Return a compact JSON string representation."""
         return json.dumps(self.to_dict(), ensure_ascii=False)
 
     def __str__(self) -> str:
@@ -57,29 +46,13 @@ class CaptureRecord:
 
 
 def build_logger(name: str = "phantom_snare", log_file: Optional[str] = None) -> logging.Logger:
-    """Construct and return a configured :class:`logging.Logger`.
-
-    The logger writes JSON-formatted capture lines so that log files can be
-    easily parsed by external tools (e.g., Splunk, ELK).
-
-    Args:
-        name:     Logger name.
-        log_file: If provided, log entries are *also* written to this file.
-
-    Returns:
-        A ready-to-use :class:`logging.Logger` instance.
-    """
     logger = logging.getLogger(name)
     if logger.handlers:
-        # Avoid adding duplicate handlers if called multiple times
         return logger
 
     logger.setLevel(logging.DEBUG)
     formatter = logging.Formatter("%(message)s")
 
-    # Operational / status messages go to stderr so they are not mixed into
-    # the structured capture data on stdout and cannot be misinterpreted as
-    # shell commands in batch-file or pipe-based invocation patterns.
     stderr_handler = logging.StreamHandler(sys.stderr)
     stderr_handler.setFormatter(formatter)
     logger.addHandler(stderr_handler)
@@ -93,10 +66,4 @@ def build_logger(name: str = "phantom_snare", log_file: Optional[str] = None) ->
 
 
 def log_capture(logger: logging.Logger, record: CaptureRecord) -> None:
-    """Write a structured JSON capture entry to *logger*.
-
-    Args:
-        logger: Destination logger.
-        record: The capture event to log.
-    """
     logger.info(record.to_json())

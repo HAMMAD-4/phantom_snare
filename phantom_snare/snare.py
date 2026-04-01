@@ -1,11 +1,3 @@
-"""Core honeypot listener for phantom_snare.
-
-Each :class:`Snare` instance manages a pool of TCP listeners (one per
-configured port).  Incoming connections are accepted, a banner is sent,
-any payload is read, the event is logged, and an optional email alert
-is dispatched – all without blocking other listeners.
-"""
-
 import errno
 import logging
 import socket
@@ -21,28 +13,6 @@ _module_logger = logging.getLogger("phantom_snare.snare")
 
 
 class Snare:
-    """Orchestrates honeypot listeners across one or more TCP ports.
-
-    Usage::
-
-        cfg = Config(ports=[2222, 8080])
-        snare = Snare(cfg)
-        snare.start()      # non-blocking – listeners run in daemon threads
-        # … do other work, or simply block …
-        snare.stop()
-
-    Args:
-        config:      Runtime configuration.
-        shield:      Optional :class:`~phantom_snare.shield.Shield` instance.
-                     When provided, connections from blocked IPs receive a
-                     deceptive response instead of the normal banner.
-        deceptor:    Optional :class:`~phantom_snare.deceptor.Deceptor`.
-                     Supplies the deceptive payloads sent to blocked IPs.
-        on_capture:  Optional callback ``(CaptureRecord) -> None`` invoked
-                     after every accepted and logged connection.  Used by the
-                     Observer module for forensic analysis.
-    """
-
     def __init__(
         self,
         config: Optional[Config] = None,
@@ -60,23 +30,14 @@ class Snare:
         self._deceptor = deceptor
         self._on_capture = on_capture
 
-    # ------------------------------------------------------------------
-    # Public API
-    # ------------------------------------------------------------------
-
     def start(self) -> None:
-        """Open listener sockets and start accept-loop threads.
-
-        Returns immediately; all I/O happens in daemon threads.
-        """
         self._stop_event.clear()
 
-        # Connect to MySQL if enabled
         if self.config.db_enabled:
             self._db = DatabaseManager(self.config)
             try:
                 self._db.connect()
-            except Exception as exc:  # pylint: disable=broad-except
+            except Exception as exc:
                 _module_logger.error("MySQL connection failed: %s", exc)
                 self._db = None
 
@@ -93,7 +54,6 @@ class Snare:
             _module_logger.error("[phantom_snare] No ports could be bound. Exiting.")
 
     def stop(self) -> None:
-        """Signal all listeners to stop, close sockets, and disconnect from MySQL."""
         self._stop_event.set()
         for sock in self._server_sockets:
             try:
@@ -110,7 +70,6 @@ class Snare:
         _module_logger.info("phantom_snare stopped.")
 
     def run_forever(self) -> None:
-        """Start listeners and block until :meth:`stop` is called or KeyboardInterrupt."""
         self.start()
         try:
             self._stop_event.wait()
@@ -119,21 +78,15 @@ class Snare:
         finally:
             self.stop()
 
-    # ------------------------------------------------------------------
-    # Internal helpers
-    # ------------------------------------------------------------------
-
     def _start_listener(self, port: int) -> None:
-        """Bind a TCP socket to *port* and spawn an accept-loop thread."""
         try:
             server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             server_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             server_sock.bind((self.config.bind_address, port))
             server_sock.listen(self.config.max_connections)
-            server_sock.settimeout(1.0)  # allows periodic check of stop_event
+            server_sock.settimeout(1.0)
             self._server_sockets.append(server_sock)
         except OSError as exc:
-            # Build an actionable hint based on the specific error code.
             win_err = getattr(exc, "winerror", None)
             posix_err = getattr(exc, "errno", None)
 
@@ -164,7 +117,6 @@ class Snare:
         self._threads.append(thread)
 
     def _accept_loop(self, server_sock: socket.socket, port: int) -> None:
-        """Accept connections on *server_sock* until the stop event is set."""
         while not self._stop_event.is_set():
             try:
                 client_sock, addr = server_sock.accept()
@@ -183,26 +135,16 @@ class Snare:
     def _handle_connection(
         self, client_sock: socket.socket, addr: tuple, port: int
     ) -> None:
-        """Process a single incoming connection.
-
-        If a Shield is attached and the connecting IP is blocked, a deceptive
-        payload is returned instead of the normal banner.  Otherwise the
-        normal banner is sent, the payload is read, the event is logged,
-        and the on_capture callback (Observer) is invoked.
-        """
         remote_ip, remote_port = addr[0], addr[1]
 
-        # Shield check: blocked IPs receive a deceptive response, not a banner.
         if self._shield is not None and not self._shield.check_and_record(remote_ip):
             self._send_deceptive_response(client_sock, remote_ip)
             return
 
         try:
-            # Send banner to make the service look real
             if self.config.banner:
                 client_sock.sendall(self.config.banner.encode())
 
-            # Read up to max_payload_bytes from the client
             client_sock.settimeout(5.0)
             try:
                 payload = client_sock.recv(self.config.max_payload_bytes)
@@ -230,20 +172,17 @@ class Snare:
             self._db.save_capture(record)
         send_alert(record, self.config)
 
-        # Notify the Observer (forensic analysis, risk scoring, honey-token check)
         if self._on_capture is not None:
             try:
                 self._on_capture(record)
-            except Exception as exc:  # pylint: disable=broad-except
+            except Exception as exc:
                 _module_logger.debug("on_capture callback error: %s", exc)
 
     def _send_deceptive_response(
         self, client_sock: socket.socket, remote_ip: str
     ) -> None:
-        """Send a deceptive payload to a blocked IP and close the socket."""
         try:
             if self._deceptor is not None:
-                # Peek at the first bytes to decide what kind of deception to use
                 client_sock.settimeout(1.0)
                 try:
                     probe = client_sock.recv(8, socket.MSG_PEEK)

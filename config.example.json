@@ -1,5 +1,5 @@
 {
-  "ports": [8000, 5000],
+  "ports": [2222, 8080, 2121],
   "bind_address": "0.0.0.0",
   "max_payload_bytes": 4096,
   "log_file": "phantom_snare.log",
