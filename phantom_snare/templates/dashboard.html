@@ -55,8 +55,8 @@
     <p class="mb-1"><strong>URL:</strong> <code id="modal-url">—</code></p>
     <p class="mb-3 text-muted small" id="modal-reason">—</p>
     <div class="d-flex gap-2">
-      <button class="btn btn-danger" onclick="modalBlock()">Block this IP now</button>
-      <button class="btn btn-secondary" onclick="closeModal()">Dismiss</button>
+      <button type="button" class="btn btn-danger" onclick="modalBlock()">Block this IP now</button>
+      <button type="button" class="btn btn-secondary" onclick="closeModal()">Dismiss</button>
     </div>
   </div>
 </div>
@@ -91,12 +91,12 @@
   </div>
 
   <ul class="nav nav-tabs" id="mainTabs">
-    <li class="nav-item"><button class="nav-link active" data-tab="tab-captures">Captures</button></li>
-    <li class="nav-item"><button class="nav-link"        data-tab="tab-events">Events</button></li>
-    <li class="nav-item"><button class="nav-link"        data-tab="tab-risk">Risk Scores</button></li>
-    <li class="nav-item"><button class="nav-link"        data-tab="tab-blocked">Blocked IPs</button></li>
-    <li class="nav-item"><button class="nav-link"        data-tab="tab-sites">Site Visits</button></li>
-    <li class="nav-item"><button class="nav-link"        data-tab="tab-honey">Honey Tokens</button></li>
+    <li class="nav-item"><button type="button" class="nav-link active" data-tab="tab-captures">Captures</button></li>
+    <li class="nav-item"><button type="button" class="nav-link"        data-tab="tab-events">Events</button></li>
+    <li class="nav-item"><button type="button" class="nav-link"        data-tab="tab-risk">Risk Scores</button></li>
+    <li class="nav-item"><button type="button" class="nav-link"        data-tab="tab-blocked">Blocked IPs</button></li>
+    <li class="nav-item"><button type="button" class="nav-link"        data-tab="tab-sites">Site Visits</button></li>
+    <li class="nav-item"><button type="button" class="nav-link"        data-tab="tab-honey">Honey Tokens</button></li>
   </ul>
 
   <div class="tab-content" id="mainTabContent">
@@ -156,7 +156,7 @@
               <h6 class="card-title">Block an IP</h6>
               <div class="input-group input-group-sm mb-2">
                 <input type="text" class="form-control" id="block-ip" placeholder="IP address">
-                <button class="btn btn-danger" onclick="blockIP()">Block</button>
+                <button type="button" class="btn btn-danger" onclick="blockIP()">Block</button>
               </div>
               <input type="text" class="form-control form-control-sm" id="block-reason"
                      placeholder="Reason (optional)">
@@ -236,32 +236,27 @@
         integrity="sha384-YvpcrYf0tY3lHB60NNkmXc4s9bIOgUxi8T/jzmz7L7s0J9P/SWTq+LkR8wm8cSi"
         crossorigin="anonymous"></script>
 <script>
-function initTabs() {
-  const buttons = document.querySelectorAll('#mainTabs .nav-link[data-tab]');
-  const panes   = document.querySelectorAll('.tab-content .tab-pane');
-  buttons.forEach(btn => {
-    btn.addEventListener('click', () => {
-      const targetId = btn.getAttribute('data-tab');
-      buttons.forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      panes.forEach(pane => {
-        if (pane.id === targetId) {
-          pane.classList.add('show', 'active');
-        } else {
-          pane.classList.remove('show', 'active');
-        }
-      });
-    });
+function switchTab(tabId) {
+  document.querySelectorAll('#mainTabs .nav-link[data-tab]').forEach(b => {
+    b.classList.toggle('active', b.getAttribute('data-tab') === tabId);
+  });
+  document.querySelectorAll('.tab-content .tab-pane').forEach(p => {
+    p.classList.toggle('show', p.id === tabId);
+    p.classList.toggle('active', p.id === tabId);
   });
 }
-initTabs();
-</script>
-<script>
+
+document.querySelectorAll('#mainTabs .nav-link[data-tab]').forEach(btn => {
+  btn.addEventListener('click', () => switchTab(btn.getAttribute('data-tab')));
+});
+
+document.getElementById('block-ip').addEventListener('keydown', e => {
+  if (e.key === 'Enter') blockIP();
+});
+
 function esc(s) {
   if (s == null) return '';
-  return String(s)
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-    .replace(/"/g,'&quot;');
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 function fmt(ts) {
@@ -279,19 +274,16 @@ function eventBadge(type) {
   const map = {
     HIGH_RISK_CONNECTION: 'danger', SHIELD_BLOCK: 'danger', SHIELD_AUTO_BLOCK: 'danger',
     HONEY_TOKEN_HIT: 'warning', CREDENTIAL_PROBE: 'warning', TRAVERSAL_ATTEMPT: 'warning',
-    HARMFUL_URL_DETECTED: 'danger',
-    HTTP_PROBE: 'info', MEDIUM_RISK_CONNECTION: 'secondary',
+    HARMFUL_URL_DETECTED: 'danger', HTTP_PROBE: 'info', MEDIUM_RISK_CONNECTION: 'secondary',
     PORT_SCAN_PROBE: 'secondary', SHIELD_UNBLOCK: 'success',
   };
-  const c = map[type] || 'light';
-  return `<span class="badge text-bg-${c}">${esc(type)}</span>`;
+  return `<span class="badge text-bg-${map[type] || 'light'}">${esc(type)}</span>`;
 }
 
-let _alertQueue = [];
 function showAlert(msg, cls='danger') {
   const el = document.createElement('div');
   el.className = `alert alert-${cls} alert-dismissible shadow fade show py-2 px-3 mb-2`;
-  el.setAttribute('role','alert');
+  el.setAttribute('role', 'alert');
   el.innerHTML = `${esc(msg)}<button type="button" class="btn-close btn-close-sm ms-2" onclick="this.parentElement.remove()" aria-label="Close"></button>`;
   document.getElementById('live-alerts').appendChild(el);
   setTimeout(() => { try { el.remove(); } catch(e){} }, 6000);
@@ -306,20 +298,26 @@ async function apiFetch(url) {
 async function apiPost(url, body) {
   const r = await fetch(url, {
     method: 'POST',
-    headers: {'Content-Type':'application/json'},
+    headers: {'Content-Type': 'application/json'},
     body: JSON.stringify(body)
   });
-  return r.json();
+  return await r.json();
 }
 
 async function blockIP() {
   const ip = document.getElementById('block-ip').value.trim();
-  const reason = document.getElementById('block-reason').value.trim() || 'Manual block from Vault';
-  if (!ip) { showAlert('Enter an IP address.','warning'); return; }
+  const reason = document.getElementById('block-reason').value.trim() || 'Manual block';
+  if (!ip) { showAlert('Enter an IP address.', 'warning'); return; }
   try {
     const r = await apiPost('/api/block', {ip, reason});
-    if (r.ok) { showAlert(`Blocked ${ip}`,'success'); document.getElementById('block-ip').value=''; refreshBlocked(); }
-    else showAlert(r.error || 'Error blocking IP');
+    if (r.ok) {
+      showAlert('Blocked ' + ip, 'success');
+      document.getElementById('block-ip').value = '';
+      document.getElementById('block-reason').value = '';
+      refreshBlocked();
+    } else {
+      showAlert(r.error || 'Error blocking IP');
+    }
   } catch(e) {
     showAlert('Network error: ' + e.message);
   }
@@ -328,7 +326,7 @@ async function blockIP() {
 async function unblockIP(ip) {
   try {
     const r = await apiPost('/api/unblock', {ip});
-    if (r.ok) { showAlert(`Unblocked ${ip}`,'success'); refreshBlocked(); }
+    if (r.ok) { showAlert('Unblocked ' + ip, 'success'); refreshBlocked(); }
     else showAlert(r.error || 'Error unblocking IP');
   } catch(e) {
     showAlert('Network error: ' + e.message);
@@ -337,8 +335,8 @@ async function unblockIP(ip) {
 
 async function blockIPDirect(ip) {
   try {
-    const r = await apiPost('/api/block', {ip, reason: 'Blocked via Risk Score dashboard'});
-    if (r.ok) { showAlert(`Blocked ${ip}`, 'success'); refreshBlocked(); }
+    const r = await apiPost('/api/block', {ip, reason: 'Blocked via Risk Scores'});
+    if (r.ok) { showAlert('Blocked ' + ip, 'success'); refreshBlocked(); }
     else showAlert(r.error || 'Error blocking IP');
   } catch(e) {
     showAlert('Network error: ' + e.message);
@@ -348,7 +346,7 @@ async function blockIPDirect(ip) {
 async function blockIPFromSite(ip) {
   try {
     const r = await apiPost('/api/block', {ip, reason: 'Blocked via Site Visits — harmful URL'});
-    if (r.ok) { showAlert(`Blocked ${ip}`, 'success'); refreshBlocked(); refreshSiteVisits(); }
+    if (r.ok) { showAlert('Blocked ' + ip, 'success'); refreshBlocked(); refreshSiteVisits(); }
     else showAlert(r.error || 'Error blocking IP');
   } catch(e) {
     showAlert('Network error: ' + e.message);
@@ -361,8 +359,7 @@ function showHarmfulModal(ip, url, reason) {
   document.getElementById('modal-ip').textContent = ip;
   document.getElementById('modal-url').textContent = url;
   document.getElementById('modal-reason').textContent = reason || '';
-  const m = document.getElementById('harmful-modal');
-  m.style.display = 'flex';
+  document.getElementById('harmful-modal').style.display = 'flex';
   switchTab('tab-sites');
 }
 
@@ -375,19 +372,6 @@ async function modalBlock() {
   if (!_modalIP) return;
   await blockIPFromSite(_modalIP);
   closeModal();
-}
-
-function switchTab(tabId) {
-  const buttons = document.querySelectorAll('#mainTabs .nav-link[data-tab]');
-  const panes   = document.querySelectorAll('.tab-content .tab-pane');
-  buttons.forEach(b => {
-    if (b.getAttribute('data-tab') === tabId) b.classList.add('active');
-    else b.classList.remove('active');
-  });
-  panes.forEach(p => {
-    if (p.id === tabId) p.classList.add('show','active');
-    else p.classList.remove('show','active');
-  });
 }
 
 let _captureFilter = '';
@@ -405,11 +389,10 @@ async function refreshCaptures() {
 }
 
 function renderCaptures(rows) {
-  const tbody = document.querySelector('#captures-table tbody');
   const filtered = _captureFilter
     ? rows.filter(r => String(r.remote_ip).toLowerCase().includes(_captureFilter))
     : rows;
-  tbody.innerHTML = filtered.map(r => `
+  document.querySelector('#captures-table tbody').innerHTML = filtered.map(r => `
     <tr>
       <td>${esc(r.id)}</td>
       <td class="text-nowrap">${fmt(r.timestamp)}</td>
@@ -431,29 +414,28 @@ let _lastEvents = [];
 let _prevEventCount = 0;
 async function refreshEvents() {
   const data = await apiFetch('/api/events?limit=100');
-  if (data.length > _prevEventCount) {
+  if (data.length > _prevEventCount && _prevEventCount > 0) {
     const newest = data[0];
-    if (_prevEventCount > 0 && newest) {
+    if (newest) {
       const type = newest.event_type || '';
       if (type.includes('HIGH_RISK') || type.includes('HONEY') || type.includes('BLOCK')) {
-        showAlert(`${type}: ${newest.remote_ip} — ${newest.details || ''}`,
+        showAlert(type + ': ' + newest.remote_ip + ' — ' + (newest.details || ''),
                   type.includes('HIGH_RISK') || type.includes('BLOCK') ? 'danger' : 'warning');
       }
     }
-    _prevEventCount = data.length;
   }
+  _prevEventCount = data.length;
   _lastEvents = data;
   renderEvents(data);
 }
 
 function renderEvents(rows) {
-  const tbody = document.querySelector('#events-table tbody');
   const filtered = _eventFilter
     ? rows.filter(r =>
         String(r.event_type).toLowerCase().includes(_eventFilter) ||
         String(r.remote_ip).toLowerCase().includes(_eventFilter))
     : rows;
-  tbody.innerHTML = filtered.map(r => `
+  document.querySelector('#events-table tbody').innerHTML = filtered.map(r => `
     <tr>
       <td>${esc(r.id)}</td>
       <td class="text-nowrap">${fmt(r.timestamp)}</td>
@@ -465,8 +447,7 @@ function renderEvents(rows) {
 
 async function refreshRisk() {
   const data = await apiFetch('/api/risk_scores');
-  const tbody = document.querySelector('#risk-table tbody');
-  tbody.innerHTML = data.map(r => `
+  document.querySelector('#risk-table tbody').innerHTML = data.map(r => `
     <tr>
       <td><code>${esc(r.ip)}</code></td>
       <td>${esc(r.connections)}</td>
@@ -477,24 +458,18 @@ async function refreshRisk() {
         </div>
       </td>
       <td>${riskBadge(r.risk_level)}</td>
-      <td>
-        <button class="btn btn-danger btn-sm" onclick="blockIPDirect('${esc(r.ip)}')">Block</button>
-      </td>
+      <td><button type="button" class="btn btn-danger btn-sm" onclick="blockIPDirect('${esc(r.ip)}')">Block</button></td>
     </tr>`).join('');
-  const highRisk = data.filter(r => r.risk_level === 'HIGH').length;
 }
 
 async function refreshBlocked() {
   const data = await apiFetch('/api/blocked');
-  const tbody = document.querySelector('#blocked-table tbody');
-  tbody.innerHTML = data.map(r => `
+  document.querySelector('#blocked-table tbody').innerHTML = data.map(r => `
     <tr>
       <td><code>${esc(r.ip)}</code></td>
       <td>${esc(r.reason)}</td>
       <td class="text-nowrap">${fmt(r.blocked_at)}</td>
-      <td>
-        <button class="btn btn-outline-success btn-sm" onclick="unblockIP('${esc(r.ip)}')">Unblock</button>
-      </td>
+      <td><button type="button" class="btn btn-outline-success btn-sm" onclick="unblockIP('${esc(r.ip)}')">Unblock</button></td>
     </tr>`).join('');
   document.getElementById('stat-blocked').textContent = data.length;
 }
@@ -516,12 +491,10 @@ document.getElementById('site-harm-filter').addEventListener('change', e => {
 async function refreshSiteVisits() {
   try {
     const data = await apiFetch('/api/site_visits?limit=50');
-    const newHarmful = data.filter(v => v.is_harmful);
-    const harmfulCount = newHarmful.length;
-
-    if (harmfulCount > _prevHarmfulCount && _prevHarmfulCount >= 0) {
-      const newest = newHarmful[0];
-      if (newest && _prevHarmfulCount > 0) {
+    const harmfulCount = data.filter(v => v.is_harmful).length;
+    if (harmfulCount > _prevHarmfulCount && _prevHarmfulCount > 0) {
+      const newest = data.find(v => v.is_harmful);
+      if (newest) {
         const url = (newest.method ? newest.method + ' ' : '') + (newest.host || '') + (newest.path || '');
         showHarmfulModal(newest.remote_ip, url, newest.harm_reason || '');
       }
@@ -534,7 +507,6 @@ async function refreshSiteVisits() {
 }
 
 function renderSiteVisits(rows) {
-  const tbody = document.querySelector('#sites-table tbody');
   let filtered = rows;
   if (_siteFilter) {
     filtered = filtered.filter(r =>
@@ -546,36 +518,30 @@ function renderSiteVisits(rows) {
     const wantHarmful = _siteHarmFilter === '1';
     filtered = filtered.filter(r => Boolean(r.is_harmful) === wantHarmful);
   }
-  tbody.innerHTML = filtered.map(r => {
-    const statusBadge = r.is_harmful
-      ? '<span class="harmful-badge">HARMFUL</span>'
-      : '<span class="safe-badge">SAFE</span>';
-    const blockBtn = !r.is_harmful ? '' :
-      `<button class="btn btn-danger btn-sm" onclick="blockIPFromSite('${esc(r.remote_ip)}')">Block IP</button>`;
+  document.querySelector('#sites-table tbody').innerHTML = filtered.map(r => {
+    const badge = r.is_harmful ? '<span class="harmful-badge">HARMFUL</span>' : '<span class="safe-badge">SAFE</span>';
+    const btn = r.is_harmful ? `<button type="button" class="btn btn-danger btn-sm" onclick="blockIPFromSite('${esc(r.remote_ip)}')">Block IP</button>` : '';
     return `<tr class="${r.is_harmful ? 'table-danger' : ''}">
       <td class="text-nowrap">${fmt(r.timestamp)}</td>
       <td><code>${esc(r.remote_ip)}</code></td>
       <td><span class="badge text-bg-secondary">${esc(r.method || '—')}</span></td>
       <td>${esc(r.host || '—')}</td>
       <td><code>${esc(r.path || '—')}</code></td>
-      <td>${statusBadge}</td>
+      <td>${badge}</td>
       <td><small class="text-muted">${esc(r.harm_reason || '')}</small></td>
-      <td>${blockBtn}</td>
+      <td>${btn}</td>
     </tr>`;
   }).join('');
 }
 
 async function refreshHoney() {
   const data = await apiFetch('/api/honey_tokens');
-  const tokBody = document.querySelector('#tokens-table tbody');
-  tokBody.innerHTML = (data.tokens || []).map(t => `
+  document.querySelector('#tokens-table tbody').innerHTML = (data.tokens || []).map(t => `
     <tr>
       <td><code>${esc(t.path)}</code></td>
       <td><small class="text-muted">${esc(t.description)}</small></td>
     </tr>`).join('');
-
-  const hitBody = document.querySelector('#hits-table tbody');
-  hitBody.innerHTML = (data.hits || []).map(h => `
+  document.querySelector('#hits-table tbody').innerHTML = (data.hits || []).map(h => `
     <tr>
       <td class="text-nowrap">${fmt(h.timestamp)}</td>
       <td><code>${esc(h.remote_ip)}</code></td>
@@ -587,26 +553,20 @@ async function refreshHoney() {
 
 async function refreshStatus() {
   try {
-    const s = await apiFetch('/api/status');
+    await apiFetch('/api/status');
     document.getElementById('status-text').textContent = 'System Active';
     document.getElementById('status-dot').className = 'status-dot dot-green';
   } catch(e) {
     document.getElementById('status-text').textContent = 'Unreachable';
     document.getElementById('status-dot').style.background = '#da3633';
   }
-  document.getElementById('last-refresh').textContent =
-    'Refreshed ' + new Date().toLocaleTimeString();
+  document.getElementById('last-refresh').textContent = 'Refreshed ' + new Date().toLocaleTimeString();
 }
 
 async function refreshAll() {
   await Promise.allSettled([
-    refreshStatus(),
-    refreshCaptures(),
-    refreshEvents(),
-    refreshRisk(),
-    refreshBlocked(),
-    refreshSiteVisits(),
-    refreshHoney(),
+    refreshStatus(), refreshCaptures(), refreshEvents(),
+    refreshRisk(), refreshBlocked(), refreshSiteVisits(), refreshHoney(),
   ]);
 }
 
