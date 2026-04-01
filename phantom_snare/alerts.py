@@ -1,5 +1,3 @@
-"""Email alert module for phantom_snare."""
-
 import logging
 import smtplib
 import ssl

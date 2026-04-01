@@ -11,7 +11,7 @@ class Config:
     """Holds all runtime configuration for the honeypot."""
 
     # Ports to listen on (each becomes a separate honeypot listener)
-    ports: List[int] = field(default_factory=lambda: [2222, 8080, 2121])
+    ports: List[int] = field(default_factory=lambda: [5000, 8000, 2121])
 
     # Network interface to bind to ("0.0.0.0" means all interfaces)
     bind_address: str = "0.0.0.0"

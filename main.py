@@ -1,16 +1,3 @@
-#!/usr/bin/env python3
-"""phantom_snare – CLI entry point.
-
-Starts all four Phantom-Snare HIDPS modules:
-
-  Module 1 – Observer  : forensic evidence collection & risk scoring
-  Module 2 – Shield    : IP blocklist & rate limiting
-  Module 3 – Deceptor  : deceptive payloads & honey tokens
-  Module 4 – Vault     : web dashboard at http://127.0.0.1:5000
-
-Then starts the honeypot TCP listeners and blocks until Ctrl-C.
-"""
-
 import argparse
 import sys
 
@@ -89,9 +76,7 @@ def main(argv=None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
-    # ----------------------------------------------------------------
-    # Load / build configuration
-    # ----------------------------------------------------------------
+  
     if args.config:
         try:
             config = Config.from_file(args.config)
@@ -113,7 +98,7 @@ def main(argv=None) -> int:
     if args.no_dashboard:
         config.dashboard_enabled = False
 
-    # Debug flag: --no-debug overrides the default-on --debug
+    # flag debug
     dashboard_debug = not args.no_debug
 
     if args.dump_config:
@@ -121,37 +106,26 @@ def main(argv=None) -> int:
         print(f"Configuration written to {args.dump_config}")
         return 0
 
-    # ----------------------------------------------------------------
-    # Module 0: shared evidence store (SQLite)
-    # ----------------------------------------------------------------
+
     store = EvidenceStore(db_path=config.evidence_db)
     store.connect()
 
-    # ----------------------------------------------------------------
-    # Module 2: Shield (blocking & rate limiting)
-    # ----------------------------------------------------------------
+   
     shield = Shield(
         evidence_store=store,
         max_connections_per_minute=config.max_connections_per_minute,
     )
 
-    # ----------------------------------------------------------------
-    # Module 3: Deceptor (honey tokens & deceptive payloads)
-    # ----------------------------------------------------------------
+
     deceptor = Deceptor(evidence_store=store)
 
-    # ----------------------------------------------------------------
-    # Module 1: Observer (forensic analysis – set up before snare)
-    # ----------------------------------------------------------------
     observer = Observer(
         evidence_store=store,
         shield=shield,
         deceptor=deceptor,
     )
 
-    # ----------------------------------------------------------------
-    # Core honeypot (Snare) wired to Shield/Deceptor/Observer
-    # ----------------------------------------------------------------
+    
     snare = Snare(
         config=config,
         shield=shield,
@@ -159,13 +133,11 @@ def main(argv=None) -> int:
         on_capture=observer.on_capture,
     )
 
-    # ----------------------------------------------------------------
-    # Module 4: Vault dashboard
-    # ----------------------------------------------------------------
+
     vault = None
     if config.dashboard_enabled:
         try:
-            from phantom_snare.vault import Vault  # pylint: disable=import-outside-toplevel
+            from phantom_snare.vault import Vault 
             vault = Vault(
                 evidence_store=store,
                 shield=shield,
@@ -183,9 +155,7 @@ def main(argv=None) -> int:
         except RuntimeError as exc:
             print(f"[phantom_snare] Dashboard disabled: {exc}", file=sys.stderr)
 
-    # ----------------------------------------------------------------
-    # Start listeners and block
-    # ----------------------------------------------------------------
+    
     try:
         snare.run_forever()
     finally:
